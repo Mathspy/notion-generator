@@ -92,6 +92,62 @@ pub struct Block {
     pub ty: BlockType,
 }
 
+impl Block {
+    pub fn replace_children(self, updated_children: Vec<Block>) -> Block {
+        if !self.has_children {
+            return self;
+        }
+
+        match self.ty {
+            BlockType::Paragraph { text, .. } => Block {
+                ty: BlockType::Paragraph {
+                    text,
+                    children: updated_children,
+                },
+                ..self
+            },
+            BlockType::Callout { text, icon, .. } => Block {
+                ty: BlockType::Callout {
+                    text,
+                    icon,
+                    children: updated_children,
+                },
+                ..self
+            },
+            BlockType::Quote { text, .. } => Block {
+                ty: BlockType::Quote {
+                    text,
+                    children: updated_children,
+                },
+                ..self
+            },
+            BlockType::BulletedListItem { text, .. } => Block {
+                ty: BlockType::BulletedListItem {
+                    text,
+                    children: updated_children,
+                },
+                ..self
+            },
+            BlockType::NumberedListItem { text, .. } => Block {
+                ty: BlockType::NumberedListItem {
+                    text,
+                    children: updated_children,
+                },
+                ..self
+            },
+            BlockType::ToDo { checked, text, .. } => Block {
+                ty: BlockType::ToDo {
+                    checked,
+                    text,
+                    children: updated_children,
+                },
+                ..self
+            },
+            ty => Block { ty, ..self },
+        }
+    }
+}
+
 // TODO: This only supports the types I think I will need for now
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
