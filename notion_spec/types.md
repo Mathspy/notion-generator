@@ -1,0 +1,14 @@
+- [ ] table_of_contents
+- [ ] heading_1
+- [ ] heading_2
+- [ ] heading_3
+- [ ] quote
+- [ ] code
+- [ ] image
+- [ ] bulleted_list_item
+- [ ] numbered_list_item
+- [ ] to_do
+- [ ] callout
+- [ ] paragraph
+  - [ ] text
+  - [ ] equation
