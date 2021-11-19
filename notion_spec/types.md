@@ -9,6 +9,6 @@
 - [ ] numbered_list_item
 - [ ] to_do
 - [ ] callout
-- [ ] paragraph
+- [x] paragraph
   - [x] text
   - [x] equation

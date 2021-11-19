@@ -2,35 +2,55 @@ use crate::response::{Block, BlockType, RichText, RichTextType};
 use maud::{html, Escaper, Markup, Render};
 use std::fmt::Write;
 
-impl Render for Block {
-    fn render(&self) -> Markup {
-        match &self.ty {
-            BlockType::HeadingOne { text } => {
+fn render_block(block: &Block, class: Option<&str>) -> Markup {
+    match &block.ty {
+        BlockType::HeadingOne { text } => {
+            html! {
+                h1 class=[class] {
+                    (render_rich_text(text))
+                }
+            }
+        }
+        BlockType::HeadingTwo { text } => {
+            html! {
+                h2 class=[class] {
+                    (render_rich_text(text))
+                }
+            }
+        }
+        BlockType::HeadingThree { text } => {
+            html! {
+                h3 class=[class] {
+                    (render_rich_text(text))
+                }
+            }
+        }
+        BlockType::Paragraph { text, children } => {
+            if children.is_empty() {
                 html! {
-                    h1  {
+                    p class=[class] {
                         (render_rich_text(text))
                     }
                 }
-            }
-            BlockType::HeadingTwo { text } => {
+            } else {
+                eprintln!("WARNING: Rendering a paragraph with children doesn't make sense as far as I am aware at least for the English language.\nThe HTML spec is strictly against it (rendering a <p> inside of a <p> is forbidden) but it's part of Notion's spec so we support it but emit this warning.\n\nRendering a paragraph with children doesn't give any indication to accessibility tools that anything about the children of this paragraph are special so it causes accessibility information loss.\n\nIf you have an actual use case for paragraphs inside of paragraphs please open an issue, I would love to be convinced of reasons to remove this warning or of good HTML ways to render paragraphs inside of paragraphs!");
+
                 html! {
-                    h2  {
-                        (render_rich_text(text))
+                    div class=[class] {
+                        p {
+                            (render_rich_text(text))
+                        }
+                        @for child in children {
+                            (render_block(child, Some("indent")))
+                        }
                     }
                 }
             }
-            BlockType::HeadingThree { text } => {
-                html! {
-                    h3  {
-                        (render_rich_text(text))
-                    }
-                }
-            }
-            _ => {
-                html! {
-                    h4 style="color: red;" {
-                        "UNSUPPORTED FEATURE: " (self.name())
-                    }
+        }
+        _ => {
+            html! {
+                h4 style="color: red;" class=[class] {
+                    "UNSUPPORTED FEATURE: " (block.name())
                 }
             }
         }
@@ -105,12 +125,10 @@ impl Render for RichText {
                     // We don't skip KaTeX output because it returns actual HTML
                     // TODO: Should we enable anything special to make it so KaTeX sandboxes
                     // its parsing or is it already safe?
-                    f.write_str(&rendered_expression)?;
-                    Ok(())
+                    buffer.push_str(&rendered_expression);
                 }
                 Err(error) => {
                     eprintln!("{}", error);
-                    Err(fmt::Error)
                 }
             },
         }
@@ -119,6 +137,7 @@ impl Render for RichText {
 
 #[cfg(test)]
 mod tests {
+    use super::render_block;
     use crate::response::{
         Annotations, Block, BlockType, Color, RichText, RichTextLink, RichTextType,
     };
@@ -138,7 +157,7 @@ mod tests {
         };
 
         assert_eq!(
-            format!("{}", block.render().into_string()),
+            format!("{}", render_block(&block, None).into_string()),
             r#"<h4 style="color: red;">UNSUPPORTED FEATURE: table_of_contents</h4>"#
         );
     }
@@ -172,7 +191,7 @@ mod tests {
             },
         };
         assert_eq!(
-            format!("{}", block.render().into_string()),
+            format!("{}", render_block(&block, None).into_string()),
             "<h1>Cool test</h1>"
         );
 
@@ -203,7 +222,7 @@ mod tests {
             },
         };
         assert_eq!(
-            format!("{}", block.render().into_string()),
+            format!("{}", render_block(&block, None).into_string()),
             "<h2>Cooler test</h2>"
         );
 
@@ -234,8 +253,138 @@ mod tests {
             },
         };
         assert_eq!(
-            format!("{}", block.render().into_string()),
+            format!("{}", render_block(&block, None).into_string()),
             "<h3>Coolest test</h3>"
+        );
+    }
+
+    #[test]
+    fn render_paragraphs() {
+        let block = Block {
+            object: "block".to_string(),
+            id: "64740ca6-3a06-4694-8845-401688334ef5".to_string(),
+            created_time: "2021-11-13T17:35:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::Paragraph {
+                text: vec![RichText {
+                    plain_text: "Cool test".to_string(),
+                    href: None,
+                    annotations: Annotations {
+                        bold: false,
+                        italic: false,
+                        strikethrough: false,
+                        underline: false,
+                        code: false,
+                        color: Color::Default,
+                    },
+                    ty: RichTextType::Text {
+                        content: "Cool test".to_string(),
+                        link: None,
+                    },
+                }],
+                children: vec![],
+            },
+        };
+        assert_eq!(
+            format!("{}", render_block(&block, None).into_string()),
+            "<p>Cool test</p>"
+        );
+
+        let block = Block {
+            object: "block".to_string(),
+            id: "4f2efd79-ae9a-4684-827c-6b69743d6c5d".to_string(),
+            created_time: "2021-11-13T17:35:00.000Z".to_string(),
+            last_edited_time: "2021-11-16T11:23:00.000Z".to_string(),
+            has_children: true,
+            archived: false,
+            ty: BlockType::Paragraph {
+                text: vec![
+                    RichText {
+                        plain_text: "Or you can just leave an empty line in between if you want it to leave extra breathing room.".to_string(),
+                        href: None,
+                        annotations: Annotations {
+                            bold: false,
+                            italic: false,
+                            strikethrough: false,
+                            underline: false,
+                            code: false,
+                            color: Color::Default,
+                        },
+                        ty: RichTextType::Text {
+                            content: "Or you can just leave an empty line in between if you want it to leave extra breathing room.".to_string(),
+                            link: None,
+                        },
+                    },
+                ],
+                children: vec![
+                    Block {
+                        object: "block".to_string(),
+                        id: "4fb9dd79-2fc7-45b1-b3a2-8efae49992ed".to_string(),
+                        created_time: "2021-11-15T18:03:00.000Z".to_string(),
+                        last_edited_time: "2021-11-16T11:23:00.000Z".to_string(),
+                        has_children: true,
+                        archived: false,
+                        ty: BlockType::Paragraph {
+                            text: vec![
+                                RichText {
+                                    plain_text: "You can also create these rather interesting nested paragraphs".to_string(),
+                                    href: None,
+                                    annotations: Annotations {
+                                        bold: false,
+                                        italic: false,
+                                        strikethrough: false,
+                                        underline: false,
+                                        code: false,
+                                        color: Color::Default,
+                                    },
+                                    ty: RichTextType::Text {
+                                        content: "You can also create these rather interesting nested paragraphs".to_string(),
+                                        link: None,
+                                    },
+                                },
+                            ],
+                            children: vec![
+                                Block {
+                                    object: "block".to_string(),
+                                    id: "817c0ca1-721a-4565-ac54-eedbbe471f0b".to_string(),
+                                    created_time: "2021-11-16T11:23:00.000Z".to_string(),
+                                    last_edited_time: "2021-11-16T11:23:00.000Z".to_string(),
+                                    has_children: false,
+                                    archived: false,
+                                    ty: BlockType::Paragraph {
+                                        text: vec![
+                                            RichText {
+                                                plain_text: "Possibly more than once too!".to_string(),
+                                                href: None,
+                                                annotations: Annotations {
+                                                    bold: false,
+                                                    italic: false,
+                                                    strikethrough: false,
+                                                    underline: false,
+                                                    code: false,
+                                                    color: Color::Default,
+                                                },
+                                                ty: RichTextType::Text {
+                                                    content: "Possibly more than once too!".to_string(),
+                                                    link: None,
+                                                },
+                                            },
+                                        ],
+                                        children: vec![],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ],
+            },
+        };
+
+        assert_eq!(
+            format!("{}", render_block(&block, None).into_string()),
+            r#"<div><p>Or you can just leave an empty line in between if you want it to leave extra breathing room.</p><div class="indent"><p>You can also create these rather interesting nested paragraphs</p><p class="indent">Possibly more than once too!</p></div></div>"#
         );
     }
 
@@ -342,7 +491,7 @@ mod tests {
             },
         };
         assert_eq!(
-            format!("{}", text),
+            text.render().into_string(),
             r#"<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>f</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mi>y</mi></mrow><annotation encoding="application/x-tex">f(x)=y</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">y</span></span></span></span>"#
         )
     }
