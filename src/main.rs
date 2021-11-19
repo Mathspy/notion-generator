@@ -1,3 +1,4 @@
+mod render;
 mod response;
 
 use anyhow::{Context, Result};

@@ -10,5 +10,5 @@
 - [ ] to_do
 - [ ] callout
 - [ ] paragraph
-  - [ ] text
+  - [x] text
   - [ ] equation

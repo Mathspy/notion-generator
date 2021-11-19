@@ -1,0 +1,163 @@
+use crate::response::{RichText, RichTextType};
+use maud::{html, Escaper, Markup, Render};
+use std::fmt::Write;
+
+fn render_rich_text(rich_text: &[RichText]) -> Markup {
+    html! {
+        @for segment in rich_text {
+            (*segment)
+        }
+    }
+}
+
+impl Render for RichText {
+    fn render_to(&self, buffer: &mut String) {
+        match &self.ty {
+            RichTextType::Text { content, link } => {
+                // TODO: Handle colors
+                if self.annotations.bold {
+                    buffer.push_str("<strong>");
+                }
+                if self.annotations.italic {
+                    buffer.push_str("<em>");
+                }
+                if self.annotations.strikethrough {
+                    buffer.push_str("<del>");
+                }
+                if self.annotations.underline {
+                    buffer.push_str(r#"<span class="underline">"#);
+                }
+                if self.annotations.code {
+                    buffer.push_str("<code>");
+                }
+                if let Some(link) = link {
+                    buffer.push_str("<a href=\"");
+
+                    let mut escaped_link = String::with_capacity(link.url.len());
+                    let mut escaper = Escaper::new(&mut escaped_link);
+                    escaper.write_str(&link.url).expect("unreachable");
+                    buffer.push_str(&escaped_link);
+
+                    buffer.push_str("\">");
+                }
+
+                let mut escaped_content = String::with_capacity(content.len());
+                let mut escape = Escaper::new(&mut escaped_content);
+                escape.write_str(content).expect("unreachable");
+                buffer.push_str(&escaped_content);
+
+                if link.is_some() {
+                    buffer.push_str("</a>");
+                }
+                if self.annotations.code {
+                    buffer.push_str("</code>");
+                }
+                if self.annotations.underline {
+                    buffer.push_str("</span>");
+                }
+                if self.annotations.strikethrough {
+                    buffer.push_str("</del>");
+                }
+                if self.annotations.italic {
+                    buffer.push_str("</em>");
+                }
+                if self.annotations.bold {
+                    buffer.push_str("</strong>");
+                }
+            }
+            RichTextType::Equation { .. } => todo!(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::response::{Annotations, Color, RichText, RichTextLink, RichTextType};
+    use maud::Render;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn display_rich_text_type_text() {
+        let text = RichText {
+            href: None,
+            plain_text: "I love you!".to_string(),
+            annotations: Annotations {
+                bold: false,
+                italic: false,
+                strikethrough: false,
+                underline: false,
+                code: false,
+                color: Color::Default,
+            },
+            ty: RichTextType::Text {
+                content: "I love you!".to_string(),
+                link: None,
+            },
+        };
+        assert_eq!(text.render().into_string(), "I love you!");
+
+        let text = RichText {
+            href: None,
+            plain_text: "a > 5 but < 3 how?".to_string(),
+            annotations: Annotations {
+                bold: false,
+                italic: false,
+                strikethrough: false,
+                underline: false,
+                code: false,
+                color: Color::Default,
+            },
+            ty: RichTextType::Text {
+                content: "a > 5 but < 3 how?".to_string(),
+                link: None,
+            },
+        };
+        assert_eq!(text.render().into_string(), "a &gt; 5 but &lt; 3 how?");
+
+        let text = RichText {
+            href: None,
+            plain_text: "boring text".to_string(),
+            annotations: Annotations {
+                bold: false,
+                italic: false,
+                strikethrough: false,
+                underline: true,
+                code: false,
+                color: Color::Default,
+            },
+            ty: RichTextType::Text {
+                content: "boring text".to_string(),
+                link: Some(RichTextLink {
+                    url: "https://cool.website/".to_string(),
+                }),
+            },
+        };
+        assert_eq!(
+            text.render().into_string(),
+            r#"<span class="underline"><a href="https://cool.website/">boring text</a></span>"#
+        );
+
+        let text = RichText {
+            href: None,
+            plain_text: "Thanks Notion <:angry_face:>".to_string(),
+            annotations: Annotations {
+                bold: true,
+                italic: true,
+                strikethrough: true,
+                underline: true,
+                code: true,
+                color: Color::Default,
+            },
+            ty: RichTextType::Text {
+                content: "Thanks Notion <:angry_face:>".to_string(),
+                link: Some(RichTextLink {
+                    url: "https://very.angry/><".to_string(),
+                }),
+            },
+        };
+        assert_eq!(
+            text.render().into_string(),
+            r#"<strong><em><del><span class="underline"><code><a href="https://very.angry/&gt;&lt;">Thanks Notion &lt;:angry_face:&gt;</a></code></span></del></em></strong>"#,
+        );
+    }
+}
