@@ -8,3 +8,8 @@ After a short break I checked Notion and realized that they don't actually retur
 HTML back from their API, but the markdown file was not to go to waste! Simply importing it into
 Notion proved super helpful as it exposed most of the features they typically support, after some
 slight fixing of links and adding of Notion-specific features it was perfect.
+
+Then I got a Notion private integration up, after a bit of fiddling realized I had to invite the
+integration to have access to the page, then I was finally able to make requests to the page, you
+can see the requests and their responses in [request.sh](./notion_spec/request.sh) and
+[responses folder](./notion_spec/responses) representatively
