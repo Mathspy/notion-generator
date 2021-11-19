@@ -1,10 +1,31 @@
-use crate::response::{Block, RichText, RichTextType};
+use crate::response::{Block, BlockType, RichText, RichTextType};
 use maud::{html, Escaper, Markup, Render};
 use std::fmt::Write;
 
 impl Render for Block {
     fn render(&self) -> Markup {
         match &self.ty {
+            BlockType::HeadingOne { text } => {
+                html! {
+                    h1  {
+                        (render_rich_text(text))
+                    }
+                }
+            }
+            BlockType::HeadingTwo { text } => {
+                html! {
+                    h2  {
+                        (render_rich_text(text))
+                    }
+                }
+            }
+            BlockType::HeadingThree { text } => {
+                html! {
+                    h3  {
+                        (render_rich_text(text))
+                    }
+                }
+            }
             _ => {
                 html! {
                     h4 style="color: red;" {
@@ -107,6 +128,102 @@ mod tests {
         assert_eq!(
             format!("{}", block.render().into_string()),
             r#"<h4 style="color: red;">UNSUPPORTED FEATURE: table_of_contents</h4>"#
+        );
+    }
+
+    #[test]
+    fn render_headings() {
+        let block = Block {
+            object: "block".to_string(),
+            id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".to_string(),
+            created_time: "2021-11-13T17:35:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::HeadingOne {
+                text: vec![RichText {
+                    plain_text: "Cool test".to_string(),
+                    href: None,
+                    annotations: Annotations {
+                        bold: false,
+                        italic: false,
+                        strikethrough: false,
+                        underline: false,
+                        code: false,
+                        color: Color::Default,
+                    },
+                    ty: RichTextType::Text {
+                        content: "Cool test".to_string(),
+                        link: None,
+                    },
+                }],
+            },
+        };
+        assert_eq!(
+            format!("{}", block.render().into_string()),
+            "<h1>Cool test</h1>"
+        );
+
+        let block = Block {
+            object: "block".to_string(),
+            id: "8042c69c-49e7-420b-a498-39b9d61c43d0".to_string(),
+            created_time: "2021-11-13T17:35:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::HeadingTwo {
+                text: vec![RichText {
+                    plain_text: "Cooler test".to_string(),
+                    href: None,
+                    annotations: Annotations {
+                        bold: false,
+                        italic: false,
+                        strikethrough: false,
+                        underline: false,
+                        code: false,
+                        color: Color::Default,
+                    },
+                    ty: RichTextType::Text {
+                        content: "Cooler test".to_string(),
+                        link: None,
+                    },
+                }],
+            },
+        };
+        assert_eq!(
+            format!("{}", block.render().into_string()),
+            "<h2>Cooler test</h2>"
+        );
+
+        let block = Block {
+            object: "block".to_string(),
+            id: "7f54fffa-6108-4a49-b8e9-587afe7ac08f".to_string(),
+            created_time: "2021-11-13T17:35:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::HeadingThree {
+                text: vec![RichText {
+                    plain_text: "Coolest test".to_string(),
+                    href: None,
+                    annotations: Annotations {
+                        bold: false,
+                        italic: false,
+                        strikethrough: false,
+                        underline: false,
+                        code: false,
+                        color: Color::Default,
+                    },
+                    ty: RichTextType::Text {
+                        content: "Coolest test".to_string(),
+                        link: None,
+                    },
+                }],
+            },
+        };
+        assert_eq!(
+            format!("{}", block.render().into_string()),
+            "<h3>Coolest test</h3>"
         );
     }
 

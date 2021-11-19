@@ -1,7 +1,7 @@
 - [ ] table_of_contents
-- [ ] heading_1
-- [ ] heading_2
-- [ ] heading_3
+- [x] heading_1
+- [x] heading_2
+- [x] heading_3
 - [ ] quote
 - [ ] code
 - [ ] image
