@@ -1,6 +1,20 @@
-use crate::response::{RichText, RichTextType};
+use crate::response::{Block, RichText, RichTextType};
 use maud::{html, Escaper, Markup, Render};
 use std::fmt::Write;
+
+impl Render for Block {
+    fn render(&self) -> Markup {
+        match &self.ty {
+            _ => {
+                html! {
+                    h4 style="color: red;" {
+                        "UNSUPPORTED FEATURE: " (self.name())
+                    }
+                }
+            }
+        }
+    }
+}
 
 fn render_rich_text(rich_text: &[RichText]) -> Markup {
     html! {
@@ -72,9 +86,29 @@ impl Render for RichText {
 
 #[cfg(test)]
 mod tests {
-    use crate::response::{Annotations, Color, RichText, RichTextLink, RichTextType};
+    use crate::response::{
+        Annotations, Block, BlockType, Color, RichText, RichTextLink, RichTextType,
+    };
     use maud::Render;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn render_unsupported() {
+        let block = Block {
+            object: "block".to_string(),
+            id: "eb39a20e-1036-4469-b750-a9df8f4f18df".to_string(),
+            created_time: "2021-11-13T17:37:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T17:37:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::TableOfContents {},
+        };
+
+        assert_eq!(
+            format!("{}", block.render().into_string()),
+            r#"<h4 style="color: red;">UNSUPPORTED FEATURE: table_of_contents</h4>"#
+        );
+    }
 
     #[test]
     fn display_rich_text_type_text() {

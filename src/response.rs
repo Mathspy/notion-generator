@@ -146,6 +146,24 @@ impl Block {
             ty => Block { ty, ..self },
         }
     }
+
+    pub fn name(&self) -> &'static str {
+        match self.ty {
+            BlockType::Paragraph { .. } => "paragraph",
+            BlockType::HeadingOne { .. } => "heading_1",
+            BlockType::HeadingTwo { .. } => "heading_2",
+            BlockType::HeadingThree { .. } => "heading_3",
+            BlockType::Callout { .. } => "callout",
+            BlockType::Quote { .. } => "quote",
+            BlockType::BulletedListItem { .. } => "bulleted_list_item",
+            BlockType::NumberedListItem { .. } => "numbered_list_item",
+            BlockType::ToDo { .. } => "todo",
+            BlockType::Code { .. } => "code",
+            BlockType::Image { .. } => "image",
+            BlockType::Divider { .. } => "divider",
+            BlockType::TableOfContents { .. } => "table_of_contents",
+        }
+    }
 }
 
 // TODO: This only supports the types I think I will need for now
