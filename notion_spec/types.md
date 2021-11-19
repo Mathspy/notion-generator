@@ -2,7 +2,7 @@
 - [x] heading_1
 - [x] heading_2
 - [x] heading_3
-- [ ] quote
+- [x] quote
 - [ ] code
 - [ ] image
 - [ ] bulleted_list_item

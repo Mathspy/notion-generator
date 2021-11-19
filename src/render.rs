@@ -47,6 +47,16 @@ fn render_block(block: &Block, class: Option<&str>) -> Markup {
                 }
             }
         }
+        BlockType::Quote { text, children } => {
+            html! {
+                blockquote {
+                    (render_rich_text(text))
+                    @for child in children {
+                        (render_block(child, Some("indent")))
+                    }
+                }
+            }
+        }
         _ => {
             html! {
                 h4 style="color: red;" class=[class] {
@@ -385,6 +395,44 @@ mod tests {
         assert_eq!(
             format!("{}", render_block(&block, None).into_string()),
             r#"<div><p>Or you can just leave an empty line in between if you want it to leave extra breathing room.</p><div class="indent"><p>You can also create these rather interesting nested paragraphs</p><p class="indent">Possibly more than once too!</p></div></div>"#
+        );
+    }
+
+    #[test]
+    fn render_quote() {
+        let block = Block {
+            object: "block".to_string(),
+            id: "191b3d44-a37f-40c4-bb4f-3477359022fd".to_string(),
+            created_time: "2021-11-13T18:58:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T19:00:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::Quote {
+                text: vec![
+                    RichText {
+                        plain_text: "If you think you can do a thing or think you can’t do a thing, you’re right.\n—Henry Ford".to_string(),
+                        href: None,
+                        annotations: Annotations {
+                            bold: false,
+                            italic: false,
+                            strikethrough: false,
+                            underline: false,
+                            code: false,
+                            color: Color::Default,
+                        },
+                        ty: RichTextType::Text {
+                            content: "If you think you can do a thing or think you can’t do a thing, you’re right.\n—Henry Ford".to_string(),
+                            link: None,
+                        },
+                    },
+                ],
+                children: vec![],
+            },
+        };
+
+        assert_eq!(
+            format!("{}", render_block(&block, None).into_string()),
+            "<blockquote>If you think you can do a thing or think you can’t do a thing, you’re right.\n—Henry Ford</blockquote>"
         );
     }
 
