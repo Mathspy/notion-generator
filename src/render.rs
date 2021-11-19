@@ -100,7 +100,19 @@ impl Render for RichText {
                     buffer.push_str("</strong>");
                 }
             }
-            RichTextType::Equation { .. } => todo!(),
+            RichTextType::Equation { expression } => match katex::render(expression) {
+                Ok(rendered_expression) => {
+                    // We don't skip KaTeX output because it returns actual HTML
+                    // TODO: Should we enable anything special to make it so KaTeX sandboxes
+                    // its parsing or is it already safe?
+                    f.write_str(&rendered_expression)?;
+                    Ok(())
+                }
+                Err(error) => {
+                    eprintln!("{}", error);
+                    Err(fmt::Error)
+                }
+            },
         }
     }
 }
@@ -310,5 +322,28 @@ mod tests {
             text.render().into_string(),
             r#"<strong><em><del><span class="underline"><code><a href="https://very.angry/&gt;&lt;">Thanks Notion &lt;:angry_face:&gt;</a></code></span></del></em></strong>"#,
         );
+    }
+
+    #[test]
+    fn display_rich_text_type_equation() {
+        let text = RichText {
+            href: None,
+            plain_text: "f(x)=y".to_string(),
+            annotations: Annotations {
+                bold: false,
+                italic: false,
+                strikethrough: false,
+                underline: false,
+                code: false,
+                color: Color::Default,
+            },
+            ty: RichTextType::Equation {
+                expression: "f(x)=y".to_string(),
+            },
+        };
+        assert_eq!(
+            format!("{}", text),
+            r#"<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>f</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mi>y</mi></mrow><annotation encoding="application/x-tex">f(x)=y</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">y</span></span></span></span>"#
+        )
     }
 }

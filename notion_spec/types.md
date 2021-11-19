@@ -11,4 +11,4 @@
 - [ ] callout
 - [ ] paragraph
   - [x] text
-  - [ ] equation
+  - [x] equation
