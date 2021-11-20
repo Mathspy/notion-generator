@@ -1,69 +1,68 @@
+use crate::highlight::highlight;
 use crate::response::{Block, BlockType, RichText, RichTextType};
+use anyhow::{Context, Result};
 use maud::{html, Escaper, Markup, Render};
 use std::fmt::Write;
 
-fn render_block(block: &Block, class: Option<&str>) -> Markup {
+fn render_block(block: &Block, class: Option<&str>) -> Result<Markup> {
     match &block.ty {
-        BlockType::HeadingOne { text } => {
-            html! {
-                h1 class=[class] {
-                    (render_rich_text(text))
-                }
+        BlockType::HeadingOne { text } => Ok(html! {
+            h1 class=[class] {
+                (render_rich_text(text))
             }
-        }
-        BlockType::HeadingTwo { text } => {
-            html! {
-                h2 class=[class] {
-                    (render_rich_text(text))
-                }
+        }),
+        BlockType::HeadingTwo { text } => Ok(html! {
+            h2 class=[class] {
+                (render_rich_text(text))
             }
-        }
-        BlockType::HeadingThree { text } => {
-            html! {
-                h3 class=[class] {
-                    (render_rich_text(text))
-                }
+        }),
+        BlockType::HeadingThree { text } => Ok(html! {
+            h3 class=[class] {
+                (render_rich_text(text))
             }
-        }
+        }),
         BlockType::Paragraph { text, children } => {
             if children.is_empty() {
-                html! {
+                Ok(html! {
                     p class=[class] {
                         (render_rich_text(text))
                     }
-                }
+                })
             } else {
                 eprintln!("WARNING: Rendering a paragraph with children doesn't make sense as far as I am aware at least for the English language.\nThe HTML spec is strictly against it (rendering a <p> inside of a <p> is forbidden) but it's part of Notion's spec so we support it but emit this warning.\n\nRendering a paragraph with children doesn't give any indication to accessibility tools that anything about the children of this paragraph are special so it causes accessibility information loss.\n\nIf you have an actual use case for paragraphs inside of paragraphs please open an issue, I would love to be convinced of reasons to remove this warning or of good HTML ways to render paragraphs inside of paragraphs!");
 
-                html! {
+                Ok(html! {
                     div class=[class] {
                         p {
                             (render_rich_text(text))
                         }
                         @for child in children {
-                            (render_block(child, Some("indent")))
+                            (render_block(child, Some("indent"))?)
                         }
                     }
-                }
+                })
             }
         }
-        BlockType::Quote { text, children } => {
-            html! {
-                blockquote {
-                    (render_rich_text(text))
-                    @for child in children {
-                        (render_block(child, Some("indent")))
-                    }
+        BlockType::Quote { text, children } => Ok(html! {
+            blockquote {
+                (render_rich_text(text))
+                @for child in children {
+                    (render_block(child, Some("indent"))?)
                 }
             }
-        }
-        _ => {
-            html! {
-                h4 style="color: red;" class=[class] {
-                    "UNSUPPORTED FEATURE: " (block.name())
-                }
+        }),
+        BlockType::Code { language, text } => highlight(
+            language,
+            &text
+                .get(0)
+                .context("Code block's RichText is empty")?
+                .plain_text,
+        ),
+        _ => Ok(html! {
+            h4 style="color: red;" class=[class] {
+                "UNSUPPORTED FEATURE: " (block.name())
             }
-        }
+        }),
     }
 }
 
@@ -149,7 +148,7 @@ impl Render for RichText {
 mod tests {
     use super::render_block;
     use crate::response::{
-        Annotations, Block, BlockType, Color, RichText, RichTextLink, RichTextType,
+        Annotations, Block, BlockType, Color, Language, RichText, RichTextLink, RichTextType,
     };
     use maud::Render;
     use pretty_assertions::assert_eq;
@@ -167,7 +166,7 @@ mod tests {
         };
 
         assert_eq!(
-            format!("{}", render_block(&block, None).into_string()),
+            format!("{}", render_block(&block, None).unwrap().into_string()),
             r#"<h4 style="color: red;">UNSUPPORTED FEATURE: table_of_contents</h4>"#
         );
     }
@@ -201,7 +200,7 @@ mod tests {
             },
         };
         assert_eq!(
-            format!("{}", render_block(&block, None).into_string()),
+            format!("{}", render_block(&block, None).unwrap().into_string()),
             "<h1>Cool test</h1>"
         );
 
@@ -232,7 +231,7 @@ mod tests {
             },
         };
         assert_eq!(
-            format!("{}", render_block(&block, None).into_string()),
+            format!("{}", render_block(&block, None).unwrap().into_string()),
             "<h2>Cooler test</h2>"
         );
 
@@ -263,7 +262,7 @@ mod tests {
             },
         };
         assert_eq!(
-            format!("{}", render_block(&block, None).into_string()),
+            format!("{}", render_block(&block, None).unwrap().into_string()),
             "<h3>Coolest test</h3>"
         );
     }
@@ -298,7 +297,7 @@ mod tests {
             },
         };
         assert_eq!(
-            format!("{}", render_block(&block, None).into_string()),
+            format!("{}", render_block(&block, None).unwrap().into_string()),
             "<p>Cool test</p>"
         );
 
@@ -393,7 +392,7 @@ mod tests {
         };
 
         assert_eq!(
-            format!("{}", render_block(&block, None).into_string()),
+            format!("{}", render_block(&block, None).unwrap().into_string()),
             r#"<div><p>Or you can just leave an empty line in between if you want it to leave extra breathing room.</p><div class="indent"><p>You can also create these rather interesting nested paragraphs</p><p class="indent">Possibly more than once too!</p></div></div>"#
         );
     }
@@ -431,8 +430,64 @@ mod tests {
         };
 
         assert_eq!(
-            format!("{}", render_block(&block, None).into_string()),
+            format!("{}", render_block(&block, None).unwrap().into_string()),
             "<blockquote>If you think you can do a thing or think you can’t do a thing, you’re right.\n—Henry Ford</blockquote>"
+        );
+    }
+
+    #[test]
+    fn render_code() {
+        let block = Block {
+            object: "block".to_string(),
+            id: "bf0128fd-3b85-4d85-aada-e500dcbcda35".to_string(),
+            created_time: "2021-11-13T17:35:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T17:38:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::Code {
+                language: Language::Rust,
+                text: vec![
+                    RichText {
+                        plain_text: "struct Magic<T> {\n    value: T\n}\n\nfn cool() -> Magic<T> {\n    return Magic {\n        value: 100\n    };\n}".to_string(),
+                        href: None,
+                        annotations: Annotations {
+                            bold: false,
+                            italic: false,
+                            strikethrough: false,
+                            underline: false,
+                            code: false,
+                            color: Color::Default,
+                        },
+                        ty: RichTextType::Text {
+                            content: "struct Magic<T> {\n    value: T\n}\n\nfn cool() -> Magic<T> {\n    return Magic {\n        value: 100\n    };\n}".to_string(),
+                            link: None,
+                        },
+                    },
+                ],
+            },
+        };
+
+        assert_eq!(
+            format!("{}", render_block(&block, None).unwrap().into_string()),
+            r#"<pre class="rust"><code class="rust">"#.to_string()
+                + r#"<span class="keyword">struct</span> <span class="type">Magic</span><span class="punctuation">&lt;</span><span class="type">T</span><span class="punctuation">&gt;</span> <span class="punctuation">{</span>"#
+                + "\n"
+                + r#"    <span class="variable">value</span>: <span class="type">T</span>"#
+                + "\n"
+                + r#"<span class="punctuation">}</span>"#
+                + "\n"
+                + "\n"
+                + r#"<span class="keyword">fn</span> <span class="function">cool</span><span class="punctuation">(</span><span class="punctuation">)</span> <span class="operator">-&gt;</span> <span class="type">Magic</span><span class="punctuation">&lt;</span><span class="type">T</span><span class="punctuation">&gt;</span> <span class="punctuation">{</span>"#
+                + "\n"
+                + r#"    <span class="keyword">return</span> <span class="type">Magic</span> <span class="punctuation">{</span>"#
+                + "\n"
+                + r#"        <span class="variable">value</span>: <span class="constant">100</span>"#
+                + "\n"
+                + r#"    <span class="punctuation">}</span><span class="punctuation">;</span>"#
+                + "\n"
+                + r#"<span class="punctuation">}</span>"#
+                + "\n"
+                + r#"</code></pre>"#
         );
     }
 

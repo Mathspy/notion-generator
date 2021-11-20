@@ -3,7 +3,7 @@
 - [x] heading_2
 - [x] heading_3
 - [x] quote
-- [ ] code
+- [x] code
 - [ ] image
 - [ ] bulleted_list_item
 - [ ] numbered_list_item

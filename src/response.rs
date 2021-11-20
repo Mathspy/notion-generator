@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // ------------------ NOTION LIST OBJECT ------------------
 // As defined in https://developers.notion.com/reference/pagination
@@ -241,8 +241,8 @@ pub enum BlockType {
     // Unsupported
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all(deserialize = "lowercase", serialize = "snake_case"))]
 pub enum Language {
     Abap,
     Arduino,
