@@ -4,7 +4,7 @@
 - [x] heading_3
 - [x] quote
 - [x] code
-- [ ] image
+- [x] image
 - [x] bulleted_list_item
 - [x] numbered_list_item
 - [ ] to_do

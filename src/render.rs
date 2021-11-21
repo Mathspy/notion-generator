@@ -1,10 +1,14 @@
-use crate::download::Downloadables;
+use crate::download::{Downloadable, Downloadables, FILES_DIR};
 use crate::highlight::highlight;
-use crate::response::{Block, BlockType, ListType, RichText, RichTextType};
+use crate::response::{Block, BlockType, File, ListType, RichText, RichTextType};
 use anyhow::{Context, Result};
 use itertools::Itertools;
 use maud::{html, Escaper, Markup, Render};
-use std::fmt::Write;
+use reqwest::Url;
+use std::{
+    fmt::Write,
+    path::{Path, PathBuf},
+};
 
 enum BlockCoalition<'a> {
     List(ListType, Vec<&'a Block>),
@@ -183,6 +187,60 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 }
             }
         }),
+        BlockType::Image { image, caption } => {
+            let url = match image {
+                File::Internal { url, .. } => url,
+                File::External { url } => url,
+            };
+
+            let parsed_url = Url::parse(url).context("Failed to parse image URL")?;
+            let ext = parsed_url.path_segments().and_then(|segments| {
+                segments
+                    .last()
+                    .map(|segment| Path::new(segment))
+                    .and_then(|path| path.extension())
+            });
+            // A path is the media directory + UUID + ext
+            // i.e media/eb39a20e-1036-4469-b750-a9df8f4f18df.png
+            let mut path = PathBuf::with_capacity(
+                FILES_DIR.len() + block.id.len() + ext.map(|ext| ext.len()).unwrap_or(0),
+            );
+            path.push(FILES_DIR);
+            path.push(&block.id);
+            if let Some(ext) = ext {
+                path.set_extension(ext);
+            }
+
+            // We need to create the return value before pushing the path
+            // so that we don't have to clone it
+            let src = path.to_str().unwrap();
+            let markup = if let Some(caption) =
+                caption.get(0).map(|rich_text| &rich_text.plain_text)
+            {
+                // Lack of alt text can be explained here
+                // https://stackoverflow.com/a/58468470/3018913
+                html! {
+                    figure {
+                        img src=(src);
+                        figcaption {
+                            (caption)
+                        }
+                    }
+                }
+            } else {
+                eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
+
+                html! {
+                    img src=(src);
+                }
+            };
+
+            downloadables
+                .list
+                .push(Downloadable::new(url.clone(), path));
+
+            Ok(markup)
+        }
         _ => Ok(html! {
             h4 style="color: red;" class=[class] {
                 "UNSUPPORTED FEATURE: " (block.name())
@@ -273,12 +331,17 @@ impl Render for RichText {
 
 #[cfg(test)]
 mod tests {
-    use super::render_block;
-    use crate::response::{
-        Annotations, Block, BlockType, Color, Language, RichText, RichTextLink, RichTextType,
+    use super::{render_block, render_blocks};
+    use crate::{
+        download::Downloadable,
+        response::{
+            Annotations, Block, BlockType, Color, File, Language, RichText, RichTextLink,
+            RichTextType,
+        },
     };
     use maud::Render;
     use pretty_assertions::assert_eq;
+    use std::path::PathBuf;
 
     #[test]
     fn render_unsupported() {
@@ -785,6 +848,91 @@ mod tests {
             r#"<ul><li>This is some cool list<ol><li>It can even contain other lists inside of it<ul><li>And those lists can contain OTHER LISTS!<ol class="indent"><li>Listception</li><li>Listception</li></ol></li></ul></li></ol></li></ul>"#
         );
         assert_eq!(downloadables, vec![]);
+    }
+
+    #[test]
+    fn render_images() {
+        let blocks = [
+                    Block {
+                        object: "block".to_string(),
+                        id: "5ac94d7e-25de-4fa3-a781-0a43aac9d5c4".to_string(),
+                        created_time: "2021-11-13T17:35:00.000Z".to_string(),
+                        last_edited_time: "2021-11-21T13:39:00.000Z".to_string(),
+                        has_children: false,
+                        archived: false,
+                        ty: BlockType::Image {
+                            image: File::Internal {
+                                url: "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/efbb73c3-2df3-4365-bcf3-cc9ece431127/circle.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211121%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211121T134120Z&X-Amz-Expires=3600&X-Amz-Signature=9ea689335e9054f55c794c7609f9c9c057c80484cd06eaf9dff9641d92e923c8&X-Amz-SignedHeaders=host&x-id=GetObject".to_string(),
+                                expiry_time: "2021-11-21T14:41:20.026Z".to_string(),
+                            },
+                            caption: vec![
+                                RichText {
+                                    plain_text: "Circle rendered in Bevy".to_string(),
+                                    href: None,
+                                    annotations: Annotations {
+                                        bold: false,
+                                        italic: false,
+                                        strikethrough: false,
+                                        underline: false,
+                                        code: false,
+                                        color: Color::Default,
+                                    },
+                                    ty: RichTextType::Text {
+                                        content: "Circle rendered in Bevy".to_string(),
+                                        link: None,
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    Block {
+                        object: "block".to_string(),
+                        id: "d1e5e2c5-4351-4b8e-83a3-20ef532967a7".to_string(),
+                        created_time: "2021-11-13T17:35:00.000Z".to_string(),
+                        last_edited_time: "2021-11-13T17:35:00.000Z".to_string(),
+                        has_children: false,
+                        archived: false,
+                        ty: BlockType::Image {
+                            image: File::External {
+                                url: "https://mathspy.me/random-file".to_string(),
+                            },
+                            caption: vec![],
+                        },
+                    }
+                ];
+
+        let (markup, downloadables) = render_blocks(&blocks, None)
+            .map(|result| result.unwrap())
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .fold(
+                (Vec::new(), Vec::new()),
+                |(mut markups, mut downloadables), (markup, downloadable)| {
+                    markups.push(markup);
+                    downloadables.extend(downloadable);
+
+                    (markups, downloadables)
+                },
+            );
+        assert_eq!(
+            markup,
+            vec![
+                r#"<figure><img src="media/5ac94d7e-25de-4fa3-a781-0a43aac9d5c4.png"><figcaption>Circle rendered in Bevy</figcaption></figure>"#,
+                r#"<img src="media/d1e5e2c5-4351-4b8e-83a3-20ef532967a7">"#
+            ]
+        );
+        assert_eq!(
+            downloadables,
+            vec![
+                Downloadable::new(
+                    "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/efbb73c3-2df3-4365-bcf3-cc9ece431127/circle.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211121%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211121T134120Z&X-Amz-Expires=3600&X-Amz-Signature=9ea689335e9054f55c794c7609f9c9c057c80484cd06eaf9dff9641d92e923c8&X-Amz-SignedHeaders=host&x-id=GetObject".to_string(),
+                    PathBuf::from("media/5ac94d7e-25de-4fa3-a781-0a43aac9d5c4.png"),
+                ),
+                Downloadable::new(
+                    "https://mathspy.me/random-file".to_string(),
+                    PathBuf::from("media/d1e5e2c5-4351-4b8e-83a3-20ef532967a7"),
+                ),
+            ]
+        );
     }
 
     #[test]
