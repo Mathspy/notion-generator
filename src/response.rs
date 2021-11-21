@@ -272,6 +272,7 @@ pub enum BlockType {
     Image {
         #[serde(flatten)]
         image: File,
+        caption: Vec<RichText>,
     },
     // Video
     // PDF
@@ -1707,16 +1708,34 @@ mod tests {
                   "object": "block",
                   "id": "5ac94d7e-25de-4fa3-a781-0a43aac9d5c4",
                   "created_time": "2021-11-13T17:35:00.000Z",
-                  "last_edited_time": "2021-11-13T17:35:00.000Z",
+                  "last_edited_time": "2021-11-21T13:39:00.000Z",
                   "has_children": false,
                   "archived": false,
                   "type": "image",
                   "image": {
-                    "caption": [],
+                    "caption": [
+                      {
+                        "type": "text",
+                        "text": {
+                          "content": "Circle rendered in Bevy",
+                          "link": null
+                        },
+                        "annotations": {
+                          "bold": false,
+                          "italic": false,
+                          "strikethrough": false,
+                          "underline": false,
+                          "code": false,
+                          "color": "default"
+                        },
+                        "plain_text": "Circle rendered in Bevy",
+                        "href": null
+                      }
+                    ],
                     "type": "file",
                     "file": {
-                      "url": "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/efbb73c3-2df3-4365-bcf3-cc9ece431127/circle.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211113%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211113T190556Z&X-Amz-Expires=3600&X-Amz-Signature=0122a6caad6a8e46f432ebd30d09bc7d770203bc5fc9163a2840497526dc1355&X-Amz-SignedHeaders=host",
-                      "expiry_time": "2021-11-13T20:05:56.214Z"
+                      "url": "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/efbb73c3-2df3-4365-bcf3-cc9ece431127/circle.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211121%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211121T134120Z&X-Amz-Expires=3600&X-Amz-Signature=9ea689335e9054f55c794c7609f9c9c057c80484cd06eaf9dff9641d92e923c8&X-Amz-SignedHeaders=host&x-id=GetObject",
+                      "expiry_time": "2021-11-21T14:41:20.026Z"
                     }
                   }
                 },
@@ -1751,14 +1770,32 @@ mod tests {
                         object: "block".to_string(),
                         id: "5ac94d7e-25de-4fa3-a781-0a43aac9d5c4".to_string(),
                         created_time: "2021-11-13T17:35:00.000Z".to_string(),
-                        last_edited_time: "2021-11-13T17:35:00.000Z".to_string(),
+                        last_edited_time: "2021-11-21T13:39:00.000Z".to_string(),
                         has_children: false,
                         archived: false,
                         ty: BlockType::Image {
                             image: File::Internal {
-                                url: "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/efbb73c3-2df3-4365-bcf3-cc9ece431127/circle.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211113%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211113T190556Z&X-Amz-Expires=3600&X-Amz-Signature=0122a6caad6a8e46f432ebd30d09bc7d770203bc5fc9163a2840497526dc1355&X-Amz-SignedHeaders=host".to_string(),
-                                expiry_time: "2021-11-13T20:05:56.214Z".to_string(),
+                                url: "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/efbb73c3-2df3-4365-bcf3-cc9ece431127/circle.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211121%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211121T134120Z&X-Amz-Expires=3600&X-Amz-Signature=9ea689335e9054f55c794c7609f9c9c057c80484cd06eaf9dff9641d92e923c8&X-Amz-SignedHeaders=host&x-id=GetObject".to_string(),
+                                expiry_time: "2021-11-21T14:41:20.026Z".to_string(),
                             },
+                            caption: vec![
+                                RichText {
+                                    plain_text: "Circle rendered in Bevy".to_string(),
+                                    href: None,
+                                    annotations: Annotations {
+                                        bold: false,
+                                        italic: false,
+                                        strikethrough: false,
+                                        underline: false,
+                                        code: false,
+                                        color: Color::Default,
+                                    },
+                                    ty: RichTextType::Text {
+                                        content: "Circle rendered in Bevy".to_string(),
+                                        link: None,
+                                    },
+                                },
+                            ],
                         },
                     },
                     Block {
@@ -1772,6 +1809,7 @@ mod tests {
                             image: File::External {
                                 url: "https://mathspy.me/random-file.png".to_string(),
                             },
+                            caption: vec![],
                         },
                     }
                 ]
