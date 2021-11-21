@@ -1,3 +1,4 @@
+use crate::download::Downloadables;
 use crate::highlight::highlight;
 use crate::response::{Block, BlockType, ListType, RichText, RichTextType};
 use anyhow::{Context, Result};
@@ -50,7 +51,7 @@ impl<'a> std::ops::Add for BlockCoalition<'a> {
 fn render_blocks<'a>(
     blocks: &'a [Block],
     class: Option<&'a str>,
-) -> impl Iterator<Item = Result<Markup>> + 'a {
+) -> impl Iterator<Item = Result<(Markup, Downloadables)>> + 'a {
     blocks
         .iter()
         .map(BlockCoalition::Solo)
@@ -61,13 +62,19 @@ fn render_blocks<'a>(
         })
 }
 
-fn render_list(ty: ListType, list: Vec<&Block>, class: Option<&str>) -> Result<Markup> {
+fn render_list(
+    ty: ListType,
+    list: Vec<&Block>,
+    class: Option<&str>,
+) -> Result<(Markup, Downloadables)> {
+    let mut downloadables = Downloadables::new();
+
     let list = list.into_iter().map(|item| {
         if let (Some(text), Some(children)) = (item.get_text(), item.get_children()) {
             Ok::<_, anyhow::Error>(html! {
                 li {
                     (render_rich_text(text))
-                    @for block in render_blocks(children, Some("indent")) {
+                    @for block in downloadables.extract(render_blocks(children, class)) {
                         (block?)
                     }
                 }
@@ -77,7 +84,7 @@ fn render_list(ty: ListType, list: Vec<&Block>, class: Option<&str>) -> Result<M
         }
     });
 
-    match ty {
+    let result = match ty {
         ListType::Bulleted => Ok(html! {
             ul class=[class] {
                 @for item in list {
@@ -93,11 +100,15 @@ fn render_list(ty: ListType, list: Vec<&Block>, class: Option<&str>) -> Result<M
             }
         }),
         _ => todo!(),
-    }
+    };
+
+    result.map(|markup| (markup, downloadables))
 }
 
-fn render_block(block: &Block, class: Option<&str>) -> Result<Markup> {
-    match &block.ty {
+fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloadables)> {
+    let mut downloadables = Downloadables::new();
+
+    let result = match &block.ty {
         BlockType::HeadingOne { text } => Ok(html! {
             h1 class=[class] {
                 (render_rich_text(text))
@@ -128,7 +139,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<Markup> {
                         p {
                             (render_rich_text(text))
                         }
-                        @for child in render_blocks(children, Some("indent")) {
+                        @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                             (child?)
                         }
                     }
@@ -138,7 +149,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<Markup> {
         BlockType::Quote { text, children } => Ok(html! {
             blockquote {
                 (render_rich_text(text))
-                @for child in render_blocks(children, Some("indent")) {
+                @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                     (child?)
                 }
             }
@@ -156,7 +167,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<Markup> {
             ul {
                 li {
                     (render_rich_text(text))
-                    @for child in render_blocks(children, Some("indent")) {
+                    @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                         (child?)
                     }
                 }
@@ -166,7 +177,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<Markup> {
             ol {
                 li {
                     (render_rich_text(text))
-                    @for child in render_blocks(children, Some("indent")) {
+                    @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                         (child?)
                     }
                 }
@@ -177,7 +188,9 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<Markup> {
                 "UNSUPPORTED FEATURE: " (block.name())
             }
         }),
-    }
+    };
+
+    result.map(|markup| (markup, downloadables))
 }
 
 fn render_rich_text(rich_text: &[RichText]) -> Markup {
@@ -279,10 +292,14 @@ mod tests {
             ty: BlockType::TableOfContents {},
         };
 
+        let (markup, downloadables) = render_block(&block, None)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
         assert_eq!(
-            format!("{}", render_block(&block, None).unwrap().into_string()),
+            markup,
             r#"<h4 style="color: red;">UNSUPPORTED FEATURE: table_of_contents</h4>"#
         );
+        assert_eq!(downloadables, vec![]);
     }
 
     #[test]
@@ -313,10 +330,11 @@ mod tests {
                 }],
             },
         };
-        assert_eq!(
-            format!("{}", render_block(&block, None).unwrap().into_string()),
-            "<h1>Cool test</h1>"
-        );
+        let (markup, downloadables) = render_block(&block, None)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
+        assert_eq!(markup, "<h1>Cool test</h1>");
+        assert_eq!(downloadables, vec![]);
 
         let block = Block {
             object: "block".to_string(),
@@ -344,10 +362,11 @@ mod tests {
                 }],
             },
         };
-        assert_eq!(
-            format!("{}", render_block(&block, None).unwrap().into_string()),
-            "<h2>Cooler test</h2>"
-        );
+        let (markup, downloadables) = render_block(&block, None)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
+        assert_eq!(markup, "<h2>Cooler test</h2>");
+        assert_eq!(downloadables, vec![]);
 
         let block = Block {
             object: "block".to_string(),
@@ -375,10 +394,11 @@ mod tests {
                 }],
             },
         };
-        assert_eq!(
-            format!("{}", render_block(&block, None).unwrap().into_string()),
-            "<h3>Coolest test</h3>"
-        );
+        let (markup, downloadables) = render_block(&block, None)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
+        assert_eq!(markup, "<h3>Coolest test</h3>");
+        assert_eq!(downloadables, vec![]);
     }
 
     #[test]
@@ -410,10 +430,11 @@ mod tests {
                 children: vec![],
             },
         };
-        assert_eq!(
-            format!("{}", render_block(&block, None).unwrap().into_string()),
-            "<p>Cool test</p>"
-        );
+        let (markup, downloadables) = render_block(&block, None)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
+        assert_eq!(markup, "<p>Cool test</p>");
+        assert_eq!(downloadables, vec![]);
 
         let block = Block {
             object: "block".to_string(),
@@ -505,10 +526,14 @@ mod tests {
             },
         };
 
+        let (markup, downloadables) = render_block(&block, None)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
         assert_eq!(
-            format!("{}", render_block(&block, None).unwrap().into_string()),
+            markup,
             r#"<div><p>Or you can just leave an empty line in between if you want it to leave extra breathing room.</p><div class="indent"><p>You can also create these rather interesting nested paragraphs</p><p class="indent">Possibly more than once too!</p></div></div>"#
         );
+        assert_eq!(downloadables, vec![]);
     }
 
     #[test]
@@ -543,10 +568,14 @@ mod tests {
             },
         };
 
+        let (markup, downloadables) = render_block(&block, None)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
         assert_eq!(
-            format!("{}", render_block(&block, None).unwrap().into_string()),
+            markup,
             "<blockquote>If you think you can do a thing or think you can’t do a thing, you’re right.\n—Henry Ford</blockquote>"
         );
+        assert_eq!(downloadables, vec![]);
     }
 
     #[test]
@@ -581,8 +610,11 @@ mod tests {
             },
         };
 
+        let (markup, downloadables) = render_block(&block, None)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
         assert_eq!(
-            format!("{}", render_block(&block, None).unwrap().into_string()),
+            markup,
             r#"<pre class="rust"><code class="rust">"#.to_string()
                 + r#"<span class="keyword">struct</span> <span class="type">Magic</span><span class="punctuation">&lt;</span><span class="type">T</span><span class="punctuation">&gt;</span> <span class="punctuation">{</span>"#
                 + "\n"
@@ -603,6 +635,7 @@ mod tests {
                 + "\n"
                 + r#"</code></pre>"#
         );
+        assert_eq!(downloadables, vec![]);
     }
 
     #[test]
@@ -744,10 +777,14 @@ mod tests {
             },
         };
 
+        let (markup, downloadables) = render_block(&block, None)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
         assert_eq!(
-            format!("{}", render_block(&block, None).unwrap().into_string()),
+            markup,
             r#"<ul><li>This is some cool list<ol><li>It can even contain other lists inside of it<ul><li>And those lists can contain OTHER LISTS!<ol class="indent"><li>Listception</li><li>Listception</li></ol></li></ul></li></ol></li></ul>"#
         );
+        assert_eq!(downloadables, vec![]);
     }
 
     #[test]

@@ -1,3 +1,4 @@
+mod download;
 mod highlight;
 mod render;
 mod response;
