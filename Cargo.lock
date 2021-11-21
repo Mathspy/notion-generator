@@ -602,6 +602,7 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "futures-util",
+ "itertools",
  "katex",
  "maud",
  "pretty_assertions",

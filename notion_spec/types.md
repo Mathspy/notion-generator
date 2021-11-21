@@ -5,8 +5,8 @@
 - [x] quote
 - [x] code
 - [ ] image
-- [ ] bulleted_list_item
-- [ ] numbered_list_item
+- [x] bulleted_list_item
+- [x] numbered_list_item
 - [ ] to_do
 - [ ] callout
 - [x] paragraph

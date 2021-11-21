@@ -1,8 +1,100 @@
 use crate::highlight::highlight;
-use crate::response::{Block, BlockType, RichText, RichTextType};
+use crate::response::{Block, BlockType, ListType, RichText, RichTextType};
 use anyhow::{Context, Result};
+use itertools::Itertools;
 use maud::{html, Escaper, Markup, Render};
 use std::fmt::Write;
+
+enum BlockCoalition<'a> {
+    List(ListType, Vec<&'a Block>),
+    Solo(&'a Block),
+}
+
+impl<'a> BlockCoalition<'a> {
+    fn list_type(&self) -> Option<ListType> {
+        match self {
+            BlockCoalition::List(ty, _) => Some(*ty),
+            BlockCoalition::Solo(block) => block.list_type(),
+        }
+    }
+}
+
+impl<'a> std::ops::Add for BlockCoalition<'a> {
+    type Output = Result<BlockCoalition<'a>, (BlockCoalition<'a>, BlockCoalition<'a>)>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self.list_type(), rhs.list_type()) {
+            (Some(self_type), Some(rhs_type)) if self_type == rhs_type => match (self, rhs) {
+                (BlockCoalition::Solo(first), BlockCoalition::Solo(second)) => {
+                    Ok(BlockCoalition::List(self_type, vec![first, second]))
+                }
+                (BlockCoalition::List(_, mut list), BlockCoalition::Solo(second)) => {
+                    list.push(second);
+                    Ok(BlockCoalition::List(self_type, list))
+                }
+                (BlockCoalition::Solo(first), BlockCoalition::List(_, mut list)) => {
+                    list.push(first);
+                    Ok(BlockCoalition::List(self_type, list))
+                }
+                (BlockCoalition::List(_, mut first_list), BlockCoalition::List(_, second_list)) => {
+                    first_list.extend(second_list);
+                    Ok(BlockCoalition::List(self_type, first_list))
+                }
+            },
+            _ => Err((self, rhs)),
+        }
+    }
+}
+
+/// Render a group of blocks into HTML
+fn render_blocks<'a>(
+    blocks: &'a [Block],
+    class: Option<&'a str>,
+) -> impl Iterator<Item = Result<Markup>> + 'a {
+    blocks
+        .iter()
+        .map(BlockCoalition::Solo)
+        .coalesce(|a, b| a + b)
+        .map(move |coalition| match coalition {
+            BlockCoalition::List(ty, list) => render_list(ty, list, class),
+            BlockCoalition::Solo(block) => render_block(block, class),
+        })
+}
+
+fn render_list(ty: ListType, list: Vec<&Block>, class: Option<&str>) -> Result<Markup> {
+    let list = list.into_iter().map(|item| {
+        if let (Some(text), Some(children)) = (item.get_text(), item.get_children()) {
+            Ok::<_, anyhow::Error>(html! {
+                li {
+                    (render_rich_text(text))
+                    @for block in render_blocks(children, Some("indent")) {
+                        (block?)
+                    }
+                }
+            })
+        } else {
+            unreachable!()
+        }
+    });
+
+    match ty {
+        ListType::Bulleted => Ok(html! {
+            ul class=[class] {
+                @for item in list {
+                    (item?)
+                }
+            }
+        }),
+        ListType::Numbered => Ok(html! {
+            ol class=[class] {
+                @for item in list {
+                    (item?)
+                }
+            }
+        }),
+        _ => todo!(),
+    }
+}
 
 fn render_block(block: &Block, class: Option<&str>) -> Result<Markup> {
     match &block.ty {
@@ -36,8 +128,8 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<Markup> {
                         p {
                             (render_rich_text(text))
                         }
-                        @for child in children {
-                            (render_block(child, Some("indent"))?)
+                        @for child in render_blocks(children, Some("indent")) {
+                            (child?)
                         }
                     }
                 })
@@ -46,8 +138,8 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<Markup> {
         BlockType::Quote { text, children } => Ok(html! {
             blockquote {
                 (render_rich_text(text))
-                @for child in children {
-                    (render_block(child, Some("indent"))?)
+                @for child in render_blocks(children, Some("indent")) {
+                    (child?)
                 }
             }
         }),
@@ -58,6 +150,28 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<Markup> {
                 .context("Code block's RichText is empty")?
                 .plain_text,
         ),
+        // The list items should only be reachable below if a block wasn't coalesced, thus it's
+        // a list made of one item so we can safely render a list of one item
+        BlockType::BulletedListItem { text, children } => Ok(html! {
+            ul {
+                li {
+                    (render_rich_text(text))
+                    @for child in render_blocks(children, Some("indent")) {
+                        (child?)
+                    }
+                }
+            }
+        }),
+        BlockType::NumberedListItem { text, children } => Ok(html! {
+            ol {
+                li {
+                    (render_rich_text(text))
+                    @for child in render_blocks(children, Some("indent")) {
+                        (child?)
+                    }
+                }
+            }
+        }),
         _ => Ok(html! {
             h4 style="color: red;" class=[class] {
                 "UNSUPPORTED FEATURE: " (block.name())
@@ -488,6 +602,151 @@ mod tests {
                 + r#"<span class="punctuation">}</span>"#
                 + "\n"
                 + r#"</code></pre>"#
+        );
+    }
+
+    #[test]
+    fn render_lists() {
+        let block = Block {
+            object: "block".to_string(),
+            id: "844b3fdf-5688-4f6c-91e8-97b4f0e436cd".to_string(),
+            created_time: "2021-11-13T19:02:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
+            has_children: true,
+            archived: false,
+            ty: BlockType::BulletedListItem {
+                text: vec![RichText {
+                    plain_text: "This is some cool list".to_string(),
+                    href: None,
+                    annotations: Annotations {
+                        bold: false,
+                        italic: false,
+                        strikethrough: false,
+                        underline: false,
+                        code: false,
+                        color: Color::Default,
+                    },
+                    ty: RichTextType::Text {
+                        content: "This is some cool list".to_string(),
+                        link: None,
+                    },
+                }],
+                children: vec![Block {
+                    object: "block".to_string(),
+                    id: "c3e9c471-d4b3-47dc-ab6a-6ecd4dda161a".to_string(),
+                    created_time: "2021-11-13T19:02:00.000Z".to_string(),
+                    last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
+                    has_children: true,
+                    archived: false,
+                    ty: BlockType::NumberedListItem {
+                        text: vec![RichText {
+                            plain_text: "It can even contain other lists inside of it".to_string(),
+                            href: None,
+                            annotations: Annotations {
+                                bold: false,
+                                italic: false,
+                                strikethrough: false,
+                                underline: false,
+                                code: false,
+                                color: Color::Default,
+                            },
+                            ty: RichTextType::Text {
+                                content: "It can even contain other lists inside of it".to_string(),
+                                link: None,
+                            },
+                        }],
+                        children: vec![Block {
+                            object: "block".to_string(),
+                            id: "55d72942-49f6-49f9-8ade-e3d049f682e5".to_string(),
+                            created_time: "2021-11-13T19:03:00.000Z".to_string(),
+                            last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
+                            has_children: true,
+                            archived: false,
+                            ty: BlockType::BulletedListItem {
+                                text: vec![RichText {
+                                    plain_text: "And those lists can contain OTHER LISTS!"
+                                        .to_string(),
+                                    href: None,
+                                    annotations: Annotations {
+                                        bold: false,
+                                        italic: false,
+                                        strikethrough: false,
+                                        underline: false,
+                                        code: false,
+                                        color: Color::Default,
+                                    },
+                                    ty: RichTextType::Text {
+                                        content: "And those lists can contain OTHER LISTS!"
+                                            .to_string(),
+                                        link: None,
+                                    },
+                                }],
+                                children: vec![
+                                    Block {
+                                        object: "block".to_string(),
+                                        id: "100116e2-0a47-4903-8b79-4ac9cc3a7870".to_string(),
+                                        created_time: "2021-11-13T19:03:00.000Z".to_string(),
+                                        last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
+                                        has_children: false,
+                                        archived: false,
+                                        ty: BlockType::NumberedListItem {
+                                            text: vec![RichText {
+                                                plain_text: "Listception".to_string(),
+                                                href: None,
+                                                annotations: Annotations {
+                                                    bold: false,
+                                                    italic: false,
+                                                    strikethrough: false,
+                                                    underline: false,
+                                                    code: false,
+                                                    color: Color::Default,
+                                                },
+                                                ty: RichTextType::Text {
+                                                    content: "Listception".to_string(),
+                                                    link: None,
+                                                },
+                                            }],
+                                            children: vec![],
+                                        },
+                                    },
+                                    Block {
+                                        object: "block".to_string(),
+                                        id: "c1a5555a-8359-4999-80dc-10241d262071".to_string(),
+                                        created_time: "2021-11-13T19:03:00.000Z".to_string(),
+                                        last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
+                                        has_children: false,
+                                        archived: false,
+                                        ty: BlockType::NumberedListItem {
+                                            text: vec![RichText {
+                                                plain_text: "Listception".to_string(),
+                                                href: None,
+                                                annotations: Annotations {
+                                                    bold: false,
+                                                    italic: false,
+                                                    strikethrough: false,
+                                                    underline: false,
+                                                    code: false,
+                                                    color: Color::Default,
+                                                },
+                                                ty: RichTextType::Text {
+                                                    content: "Listception".to_string(),
+                                                    link: None,
+                                                },
+                                            }],
+                                            children: vec![],
+                                        },
+                                    },
+                                ],
+                            },
+                        }],
+                    },
+                }],
+            },
+        };
+
+        assert_eq!(
+            format!("{}", render_block(&block, None).unwrap().into_string()),
+            r#"<ul><li>This is some cool list<ol><li>It can even contain other lists inside of it<ul><li>And those lists can contain OTHER LISTS!<ol class="indent"><li>Listception</li><li>Listception</li></ol></li></ul></li></ol></li></ul>"#
         );
     }
 

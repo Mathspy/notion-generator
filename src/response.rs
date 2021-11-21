@@ -164,6 +164,51 @@ impl Block {
             BlockType::TableOfContents { .. } => "table_of_contents",
         }
     }
+
+    pub fn get_text(&self) -> Option<&[RichText]> {
+        match &self.ty {
+            BlockType::Paragraph { text, .. } => Some(text),
+            BlockType::HeadingOne { text, .. } => Some(text),
+            BlockType::HeadingTwo { text, .. } => Some(text),
+            BlockType::HeadingThree { text, .. } => Some(text),
+            BlockType::Callout { text, .. } => Some(text),
+            BlockType::Quote { text, .. } => Some(text),
+            BlockType::BulletedListItem { text, .. } => Some(text),
+            BlockType::NumberedListItem { text, .. } => Some(text),
+            BlockType::ToDo { text, .. } => Some(text),
+            BlockType::Code { text, .. } => Some(text),
+            _ => None,
+        }
+    }
+
+    pub fn get_children(&self) -> Option<&[Block]> {
+        match &self.ty {
+            BlockType::Paragraph { children, .. } => Some(children),
+            BlockType::Callout { children, .. } => Some(children),
+            BlockType::Quote { children, .. } => Some(children),
+            BlockType::BulletedListItem { children, .. } => Some(children),
+            BlockType::NumberedListItem { children, .. } => Some(children),
+            BlockType::ToDo { children, .. } => Some(children),
+            _ => None,
+        }
+    }
+
+    pub fn list_type(&self) -> Option<ListType> {
+        match self.ty {
+            BlockType::BulletedListItem { .. } => Some(ListType::Bulleted),
+            BlockType::NumberedListItem { .. } => Some(ListType::Numbered),
+            BlockType::ToDo { .. } => Some(ListType::ToDo),
+            _ => None,
+        }
+    }
+}
+
+// Not a Notion type but a useful utility type
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ListType {
+    Bulleted,
+    Numbered,
+    ToDo,
 }
 
 // TODO: This only supports the types I think I will need for now
