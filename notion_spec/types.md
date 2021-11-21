@@ -1,4 +1,5 @@
 - [ ] table_of_contents
+- [ ] toggle
 - [x] heading_1
 - [x] heading_2
 - [x] heading_3
@@ -8,6 +9,7 @@
 - [x] bulleted_list_item
 - [x] numbered_list_item
 - [ ] to_do
+- [x] divider
 - [x] callout
 - [x] paragraph
   - [x] text

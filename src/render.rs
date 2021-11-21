@@ -128,6 +128,9 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 (render_rich_text(text))
             }
         }),
+        BlockType::Divider {} => Ok(html! {
+            br;
+        }),
         BlockType::Paragraph { text, children } => {
             if children.is_empty() {
                 Ok(html! {
@@ -519,6 +522,25 @@ mod tests {
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(markup, "<h3>Coolest test</h3>");
+        assert_eq!(downloadables, vec![]);
+    }
+
+    #[test]
+    fn render_divider() {
+        let block = Block {
+            object: "block".to_string(),
+            id: "5e845049-255f-4232-96fd-6f20449be0bc".to_string(),
+            created_time: "2021-11-15T21:56:00.000Z".to_string(),
+            last_edited_time: "2021-11-15T21:56:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::Divider {},
+        };
+
+        let (markup, downloadables) = render_block(&block, None)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
+        assert_eq!(markup, "<br>");
         assert_eq!(downloadables, vec![]);
     }
 
