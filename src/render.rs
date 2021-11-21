@@ -1,6 +1,6 @@
 use crate::download::{Downloadable, Downloadables, FILES_DIR};
 use crate::highlight::highlight;
-use crate::response::{Block, BlockType, File, ListType, RichText, RichTextType};
+use crate::response::{Block, BlockType, EmojiOrFile, File, ListType, RichText, RichTextType};
 use anyhow::{Context, Result};
 use itertools::Itertools;
 use maud::{html, Escaper, Markup, Render};
@@ -188,28 +188,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
             }
         }),
         BlockType::Image { image, caption } => {
-            let url = match image {
-                File::Internal { url, .. } => url,
-                File::External { url } => url,
-            };
-
-            let parsed_url = Url::parse(url).context("Failed to parse image URL")?;
-            let ext = parsed_url.path_segments().and_then(|segments| {
-                segments
-                    .last()
-                    .map(|segment| Path::new(segment))
-                    .and_then(|path| path.extension())
-            });
-            // A path is the media directory + UUID + ext
-            // i.e media/eb39a20e-1036-4469-b750-a9df8f4f18df.png
-            let mut path = PathBuf::with_capacity(
-                FILES_DIR.len() + block.id.len() + ext.map(|ext| ext.len()).unwrap_or(0),
-            );
-            path.push(FILES_DIR);
-            path.push(&block.id);
-            if let Some(ext) = ext {
-                path.set_extension(ext);
-            }
+            let (url, path) = get_downloadable_from_file(image, &block.id)?;
 
             // We need to create the return value before pushing the path
             // so that we don't have to clone it
@@ -235,11 +214,63 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 }
             };
 
-            downloadables
-                .list
-                .push(Downloadable::new(url.clone(), path));
+            downloadables.list.push(Downloadable::new(url, path));
 
             Ok(markup)
+        }
+        BlockType::Callout {
+            text,
+            children,
+            icon,
+        } => {
+            match icon {
+                // Accessible emojis:
+                // https://adrianroselli.com/2016/12/accessible-emoji-tweaked.html
+                EmojiOrFile::Emoji(emoji) => {
+                    let label =
+                        emoji::lookup_by_glyph::lookup(&emoji.emoji).map(|emoji| emoji.name);
+
+                    Ok(html! {
+                        figure class="callout" {
+                            div {
+                                span role="img" aria-label=[label] {
+                                    (emoji.emoji)
+                                }
+                            }
+                            div {
+                                (render_rich_text(text))
+                                @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
+                                    (child?)
+                                }
+                            }
+                        }
+                    })
+                }
+                EmojiOrFile::File(file) => {
+                    eprintln!("WARNING: Using images as callout icon results in images that don't have accessible alt text");
+
+                    let (url, path) = get_downloadable_from_file(file, &block.id)?;
+                    let src = path.to_str().unwrap();
+
+                    let markup = html! {
+                        figure class="callout" {
+                            div {
+                                img src=(src);
+                            }
+                            div {
+                                (render_rich_text(text))
+                                @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
+                                    (child?)
+                                }
+                            }
+                        }
+                    };
+
+                    downloadables.list.push(Downloadable::new(url, path));
+
+                    Ok(markup)
+                }
+            }
         }
         _ => Ok(html! {
             h4 style="color: red;" class=[class] {
@@ -249,6 +280,33 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
     };
 
     result.map(|markup| (markup, downloadables))
+}
+
+fn get_downloadable_from_file(file: &File, block_id: &str) -> Result<(String, PathBuf)> {
+    let url = match file {
+        File::Internal { url, .. } => url,
+        File::External { url } => url,
+    };
+
+    let parsed_url = Url::parse(url).context("Failed to parse image URL")?;
+    let ext = parsed_url.path_segments().and_then(|segments| {
+        segments
+            .last()
+            .map(|segment| Path::new(segment))
+            .and_then(|path| path.extension())
+    });
+    // A path is the media directory + UUID + ext
+    // i.e media/eb39a20e-1036-4469-b750-a9df8f4f18df.png
+    let mut path = PathBuf::with_capacity(
+        FILES_DIR.len() + block_id.len() + ext.map(|ext| ext.len()).unwrap_or(0),
+    );
+    path.push(FILES_DIR);
+    path.push(block_id);
+    if let Some(ext) = ext {
+        path.set_extension(ext);
+    }
+
+    Ok((url.clone(), path))
 }
 
 fn render_rich_text(rich_text: &[RichText]) -> Markup {
@@ -335,8 +393,8 @@ mod tests {
     use crate::{
         download::Downloadable,
         response::{
-            Annotations, Block, BlockType, Color, File, Language, RichText, RichTextLink,
-            RichTextType,
+            Annotations, Block, BlockType, Color, Emoji, EmojiOrFile, File, Language, RichText,
+            RichTextLink, RichTextType,
         },
     };
     use maud::Render;
@@ -930,6 +988,138 @@ mod tests {
                 Downloadable::new(
                     "https://mathspy.me/random-file".to_string(),
                     PathBuf::from("media/d1e5e2c5-4351-4b8e-83a3-20ef532967a7"),
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn render_callouts() {
+        let blocks = [
+            Block {
+                object: "block".to_string(),
+                id: "b7363fed-d7cd-4aba-a86f-f51763f4ce91".to_string(),
+                created_time: "2021-11-13T17:50:00.000Z".to_string(),
+                last_edited_time: "2021-11-13T17:50:00.000Z".to_string(),
+                has_children: false,
+                archived: false,
+                ty: BlockType::Callout {
+                    text: vec![RichText {
+                        plain_text: "Some really spooky callout.".to_string(),
+                        href: None,
+                        annotations: Annotations {
+                            bold: false,
+                            italic: false,
+                            strikethrough: false,
+                            underline: false,
+                            code: false,
+                            color: Color::Default,
+                        },
+                        ty: RichTextType::Text {
+                            content: "Some really spooky callout.".to_string(),
+                            link: None,
+                        },
+                    }],
+                    icon: EmojiOrFile::Emoji(Emoji {
+                        emoji: "⚠️".to_string(),
+                    }),
+                    children: vec![],
+                },
+            },
+            Block {
+                object: "block".to_string(),
+                id: "28c719a3-9845-4f08-9e87-1fe78e50e92b".to_string(),
+                created_time: "2021-11-13T17:50:00.000Z".to_string(),
+                last_edited_time: "2021-11-13T17:50:00.000Z".to_string(),
+                has_children: false,
+                archived: false,
+                ty: BlockType::Callout {
+                    text: vec![RichText {
+                        plain_text: "Some really spooky callout.".to_string(),
+                        href: None,
+                        annotations: Annotations {
+                            bold: false,
+                            italic: false,
+                            strikethrough: false,
+                            underline: false,
+                            code: false,
+                            color: Color::Default,
+                        },
+                        ty: RichTextType::Text {
+                            content: "Some really spooky callout.".to_string(),
+                            link: None,
+                        },
+                    }],
+                    icon: EmojiOrFile::File(File::Internal {
+                        url: "https://example.com/hehe.gif".to_string(),
+                        expiry_time: "2021-11-13T17:50:00.000Z".to_string(),
+                    }),
+                    children: vec![],
+                },
+            },
+            Block {
+                object: "block".to_string(),
+                id: "66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73".to_string(),
+                created_time: "2021-11-13T17:50:00.000Z".to_string(),
+                last_edited_time: "2021-11-13T17:50:00.000Z".to_string(),
+                has_children: false,
+                archived: false,
+                ty: BlockType::Callout {
+                    text: vec![RichText {
+                        plain_text: "Some really spooky callout.".to_string(),
+                        href: None,
+                        annotations: Annotations {
+                            bold: false,
+                            italic: false,
+                            strikethrough: false,
+                            underline: false,
+                            code: false,
+                            color: Color::Default,
+                        },
+                        ty: RichTextType::Text {
+                            content: "Some really spooky callout.".to_string(),
+                            link: None,
+                        },
+                    }],
+                    icon: EmojiOrFile::File(File::External {
+                        url: "https://example.com".to_string(),
+                    }),
+                    children: vec![],
+                },
+            },
+        ];
+
+        let (markup, downloadables) = render_blocks(&blocks, None)
+            .map(|result| result.unwrap())
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .fold(
+                (Vec::new(), Vec::new()),
+                |(mut markups, mut downloadables), (markup, downloadable)| {
+                    markups.push(markup);
+                    downloadables.extend(downloadable);
+
+                    (markups, downloadables)
+                },
+            );
+
+        assert_eq!(
+            markup,
+            vec![
+                r#"<figure class="callout"><div><span role="img" aria-label="warning">⚠️</span></div><div>Some really spooky callout.</div></figure>"#,
+                r#"<figure class="callout"><div><img src="media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"></div><div>Some really spooky callout.</div></figure>"#,
+                r#"<figure class="callout"><div><img src="media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"></div><div>Some really spooky callout.</div></figure>"#
+            ]
+        );
+        assert_eq!(
+            downloadables,
+            vec![
+                Downloadable::new(
+                    "https://example.com/hehe.gif".to_string(),
+                    PathBuf::from("media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"),
+                ),
+                Downloadable::new(
+                    "https://example.com".to_string(),
+                    PathBuf::from("media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"),
                 ),
             ]
         );

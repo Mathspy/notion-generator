@@ -377,7 +377,7 @@ pub enum Language {
 // // As defined in https://developers.notion.com/reference/emoji-object
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Emoji {
-    emoji: String,
+    pub emoji: String,
 }
 
 // // ------------------ NOTION EMOJI OBJECT ------------------

@@ -8,7 +8,7 @@
 - [x] bulleted_list_item
 - [x] numbered_list_item
 - [ ] to_do
-- [ ] callout
+- [x] callout
 - [x] paragraph
   - [x] text
   - [x] equation

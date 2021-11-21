@@ -9,6 +9,7 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1" }
 async-recursion = { version = "0.3" }
+emoji = { version = "0.2" }
 futures-util = { version = "0.3" }
 itertools = { version = "0.10" }
 katex = { version = "0.4" }
