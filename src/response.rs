@@ -1,5 +1,33 @@
 use serde::{Deserialize, Serialize};
 
+// ------------------ NOTION ERROR OBJECT ------------------
+// As defined in https://developers.notion.com/reference/errors
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct Error {
+    pub code: ErrorCode,
+    pub message: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all(deserialize = "snake_case", serialize = "SCREAMING_SNAKE_CASE"))]
+pub enum ErrorCode {
+    InvalidJson,
+    InvalidRequestUrl,
+    InvalidRequest,
+    ValidationError,
+    MissingVersion,
+    Unauthorized,
+    RestrictedResource,
+    ObjectNotFound,
+    ConflictError,
+    RateLimited,
+    InternalServerError,
+    ServiceUnavailable,
+    DatabaseConnectionUnavailable,
+    #[serde(other)]
+    Unknown,
+}
+
 // ------------------ NOTION LIST OBJECT ------------------
 // As defined in https://developers.notion.com/reference/pagination
 #[derive(Debug, Deserialize, PartialEq)]
@@ -413,10 +441,106 @@ pub enum EmojiOrFile {
 #[cfg(test)]
 mod tests {
     use super::{
-        Annotations, Block, BlockType, Color, Emoji, EmojiOrFile, File, Language, List, RichText,
-        RichTextType,
+        Annotations, Block, BlockType, Color, Emoji, EmojiOrFile, Error, ErrorCode, File, Language,
+        List, RichText, RichTextType,
     };
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_errors() {
+        let json: &str = r#"
+          {
+            "code": "invalid_json",
+            "message": "Oh no the JSON you sent is invalid :<"
+          }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<Error>(json).unwrap(),
+            Error {
+                code: ErrorCode::InvalidJson,
+                message: "Oh no the JSON you sent is invalid :<".to_string()
+            }
+        );
+
+        let json: &str = r#""invalid_request_url""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::InvalidRequestUrl
+        );
+
+        let json: &str = r#""invalid_request""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::InvalidRequest
+        );
+
+        let json: &str = r#""validation_error""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::ValidationError
+        );
+
+        let json: &str = r#""missing_version""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::MissingVersion
+        );
+
+        let json: &str = r#""unauthorized""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::Unauthorized
+        );
+
+        let json: &str = r#""restricted_resource""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::RestrictedResource
+        );
+
+        let json: &str = r#""object_not_found""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::ObjectNotFound
+        );
+
+        let json: &str = r#""conflict_error""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::ConflictError
+        );
+
+        let json: &str = r#""rate_limited""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::RateLimited
+        );
+
+        let json: &str = r#""internal_server_error""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::InternalServerError
+        );
+
+        let json: &str = r#""service_unavailable""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::ServiceUnavailable
+        );
+
+        let json: &str = r#""database_connection_unavailable""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::DatabaseConnectionUnavailable
+        );
+
+        let json: &str = r#""some_new_error_notion_just_added""#;
+        assert_eq!(
+            serde_json::from_str::<ErrorCode>(json).unwrap(),
+            ErrorCode::Unknown
+        );
+    }
 
     #[test]
     fn test_paragraph() {
