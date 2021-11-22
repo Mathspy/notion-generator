@@ -102,7 +102,22 @@ async fn main() -> Result<()> {
         &auth_token,
     )
     .await
-    .context("Failed to get block children")?;
+    .context("Failed to get block children")?
+    .into_iter()
+    .collect::<Result<Vec<_>>>()?;
+
+    let (markup, _downloadables) =
+        render::render_page(blocks, None).context("Failed to render page")?;
+
+    let write_markup = async {
+        tokio::fs::write("index.html", markup.0)
+            .await
+            .context("Failed to write index.html file")?;
+
+        Ok::<_, anyhow::Error>(())
+    };
+
+    write_markup.await?;
 
     Ok(())
 }
