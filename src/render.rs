@@ -3,7 +3,7 @@ use crate::highlight::highlight;
 use crate::response::{Block, BlockType, EmojiOrFile, File, ListType, RichText, RichTextType};
 use anyhow::{Context, Result};
 use itertools::Itertools;
-use maud::{html, Escaper, Markup, Render, DOCTYPE};
+use maud::{html, Escaper, Markup, PreEscaped, Render, DOCTYPE};
 use reqwest::Url;
 use std::{
     fmt::Write,
@@ -51,7 +51,7 @@ impl<'a> std::ops::Add for BlockCoalition<'a> {
     }
 }
 
-pub fn render_page(blocks: Vec<Block>, title: Option<&str>) -> Result<(Markup, Downloadables)> {
+pub fn render_page(blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
     let mut downloadables = Downloadables::new();
     let rendered_blocks = downloadables.extract(render_blocks(&blocks, None));
 
@@ -60,16 +60,10 @@ pub fn render_page(blocks: Vec<Block>, title: Option<&str>) -> Result<(Markup, D
         html lang="en" {
             head {
                 meta charset="utf-8";
-
-                link rel="icon" href="/favicon.ico";
-
                 meta name="viewport" content="width=device-width, initial-scale=1";
-
                 link rel="stylesheet" href="styles/katex.css";
-                link rel="stylesheet" href="styles/main.css";
-                @if let Some(title) = title {
-                    title { (title) };
-                }
+
+                (PreEscaped(head))
             }
             body {
                 main {
