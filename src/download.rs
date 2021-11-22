@@ -1,6 +1,8 @@
 use anyhow::Result;
+use futures_util::stream::{FuturesUnordered, TryStreamExt};
 use itertools::Itertools;
 use maud::Markup;
+use reqwest::Client;
 use std::path::PathBuf;
 
 pub const FILES_DIR: &str = "media";
@@ -36,6 +38,21 @@ impl Downloadables {
             self.list.extend(downloadables.list);
             markup
         })
+    }
+
+    pub async fn download_all(self, client: &Client) -> Result<()> {
+        let write_operations = self
+            .list
+            .into_iter()
+            .map(|downloadable| async {
+                let response = client.get(downloadable.url).send().await?;
+                let bytes = response.bytes().await?;
+                tokio::fs::write(downloadable.path, bytes.as_ref()).await?;
+                Ok(())
+            })
+            .collect::<FuturesUnordered<_>>();
+
+        write_operations.try_collect::<()>().await
     }
 }
 

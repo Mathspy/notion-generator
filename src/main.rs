@@ -106,7 +106,7 @@ async fn main() -> Result<()> {
     .into_iter()
     .collect::<Result<Vec<_>>>()?;
 
-    let (markup, _downloadables) =
+    let (markup, downloadables) =
         render::render_page(blocks, None).context("Failed to render page")?;
 
     let write_markup = async {
@@ -117,7 +117,7 @@ async fn main() -> Result<()> {
         Ok::<_, anyhow::Error>(())
     };
 
-    write_markup.await?;
+    tokio::try_join!(write_markup, downloadables.download_all(&client))?;
 
     Ok(())
 }
