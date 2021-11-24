@@ -94,6 +94,9 @@ struct Opts {
     /// A partial HTML file to append to the bottom of the head
     #[clap(short, long, default_value = "partials/head.html")]
     head: PathBuf,
+    /// The directory to output generated files into, defaults to current directory
+    #[clap(short, long, default_value = ".")]
+    output: PathBuf,
     // TODO: Add actual verbose logs lol
     /// A level of verbosity, and can be used multiple times
     #[clap(short, long, parse(from_occurrences))]
@@ -126,14 +129,17 @@ async fn main() -> Result<()> {
         render::render_page(blocks, head).context("Failed to render page")?;
 
     let write_markup = async {
-        tokio::fs::write("index.html", markup.0)
+        tokio::fs::write(opts.output.join("index.html"), markup.0)
             .await
             .context("Failed to write index.html file")?;
 
         Ok::<_, anyhow::Error>(())
     };
 
-    tokio::try_join!(write_markup, downloadables.download_all(&client))?;
+    tokio::try_join!(
+        write_markup,
+        downloadables.download_all(&client, &opts.output)
+    )?;
 
     Ok(())
 }
