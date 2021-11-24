@@ -58,7 +58,11 @@ jobs:
       - uses: Swatinem/rust-cache@v1
 
       - name: Build
-        run: cargo build --release
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          use-cross: true
+          args: --release
 
       - name: Display checksum
         run: shasum -a 256 target/release/notion-generator
