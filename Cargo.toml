@@ -16,7 +16,7 @@ futures-util = { version = "0.3" }
 itertools = { version = "0.10" }
 katex = { version = "0.4" }
 maud = { version = "0.23" }
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
