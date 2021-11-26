@@ -41,6 +41,8 @@ impl Downloadables {
     }
 
     pub async fn download_all(self, client: &Client, output: &Path) -> Result<()> {
+        tokio::fs::create_dir(output.join(FILES_DIR)).await?;
+
         let write_operations = self
             .list
             .into_iter()
