@@ -156,7 +156,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
             }
         }),
         BlockType::Divider {} => Ok(html! {
-            br;
+            hr;
         }),
         BlockType::Paragraph { text, children } => {
             if children.is_empty() {
@@ -567,7 +567,7 @@ mod tests {
         let (markup, downloadables) = render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
-        assert_eq!(markup, "<br>");
+        assert_eq!(markup, "<hr>");
         assert_eq!(downloadables, vec![]);
     }
 
