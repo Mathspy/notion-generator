@@ -156,7 +156,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
             }
         }),
         BlockType::Divider {} => Ok(html! {
-            hr;
+            hr id=(block.id.replace("-", ""));
         }),
         BlockType::Paragraph { text, children } => {
             if children.is_empty() {
@@ -576,7 +576,7 @@ mod tests {
         let (markup, downloadables) = render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
-        assert_eq!(markup, "<hr>");
+        assert_eq!(markup, r#"<hr id="5e845049255f423296fd6f20449be0bc">"#);
         assert_eq!(downloadables, vec![]);
     }
 
