@@ -304,7 +304,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
             }
         }
         _ => Ok(html! {
-            h4 style="color: red;" class=[class] {
+            h4 id=(block.id.replace("-", "")) style="color: red;" class=[class] {
                 "UNSUPPORTED FEATURE: " (block.name())
             }
         }),
@@ -449,7 +449,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            r#"<h4 style="color: red;">UNSUPPORTED FEATURE: table_of_contents</h4>"#
+            r#"<h4 id="eb39a20e10364469b750a9df8f4f18df" style="color: red;">UNSUPPORTED FEATURE: table_of_contents</h4>"#
         );
         assert_eq!(downloadables, vec![]);
     }
