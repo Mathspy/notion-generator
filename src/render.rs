@@ -230,7 +230,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 // Lack of alt text can be explained here
                 // https://stackoverflow.com/a/58468470/3018913
                 html! {
-                    figure {
+                    figure id=(block.id.replace("-", "")) {
                         img src=(src);
                         figcaption {
                             (caption)
@@ -241,7 +241,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
 
                 html! {
-                    img src=(src);
+                    img id=(block.id.replace("-", "")) src=(src);
                 }
             };
 
@@ -1038,8 +1038,8 @@ mod tests {
         assert_eq!(
             markup,
             vec![
-                r#"<figure><img src="media/5ac94d7e-25de-4fa3-a781-0a43aac9d5c4.png"><figcaption>Circle rendered in Bevy</figcaption></figure>"#,
-                r#"<img src="media/d1e5e2c5-4351-4b8e-83a3-20ef532967a7">"#
+                r#"<figure id="5ac94d7e25de4fa3a7810a43aac9d5c4"><img src="media/5ac94d7e-25de-4fa3-a781-0a43aac9d5c4.png"><figcaption>Circle rendered in Bevy</figcaption></figure>"#,
+                r#"<img id="d1e5e2c543514b8e83a320ef532967a7" src="media/d1e5e2c5-4351-4b8e-83a3-20ef532967a7">"#
             ]
         );
         assert_eq!(
