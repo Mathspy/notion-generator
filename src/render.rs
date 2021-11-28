@@ -161,7 +161,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
         BlockType::Paragraph { text, children } => {
             if children.is_empty() {
                 Ok(html! {
-                    p class=[class] {
+                    p id=(block.id.replace("-", "")) class=[class] {
                         (render_rich_text(text))
                     }
                 })
@@ -169,7 +169,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 eprintln!("WARNING: Rendering a paragraph with children doesn't make sense as far as I am aware at least for the English language.\nThe HTML spec is strictly against it (rendering a <p> inside of a <p> is forbidden) but it's part of Notion's spec so we support it but emit this warning.\n\nRendering a paragraph with children doesn't give any indication to accessibility tools that anything about the children of this paragraph are special so it causes accessibility information loss.\n\nIf you have an actual use case for paragraphs inside of paragraphs please open an issue, I would love to be convinced of reasons to remove this warning or of good HTML ways to render paragraphs inside of paragraphs!");
 
                 Ok(html! {
-                    div class=[class] {
+                    div id=(block.id.replace("-", "")) class=[class] {
                         p {
                             (render_rich_text(text))
                         }
@@ -612,7 +612,10 @@ mod tests {
         let (markup, downloadables) = render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
-        assert_eq!(markup, "<p>Cool test</p>");
+        assert_eq!(
+            markup,
+            r#"<p id="64740ca63a0646948845401688334ef5">Cool test</p>"#
+        );
         assert_eq!(downloadables, vec![]);
 
         let block = Block {
@@ -710,7 +713,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            r#"<div><p>Or you can just leave an empty line in between if you want it to leave extra breathing room.</p><div class="indent"><p>You can also create these rather interesting nested paragraphs</p><p class="indent">Possibly more than once too!</p></div></div>"#
+            r#"<div id="4f2efd79ae9a4684827c6b69743d6c5d"><p>Or you can just leave an empty line in between if you want it to leave extra breathing room.</p><div id="4fb9dd792fc745b1b3a28efae49992ed" class="indent"><p>You can also create these rather interesting nested paragraphs</p><p id="817c0ca1721a4565ac54eedbbe471f0b" class="indent">Possibly more than once too!</p></div></div>"#
         );
         assert_eq!(downloadables, vec![]);
     }
