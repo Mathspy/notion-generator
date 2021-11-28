@@ -262,7 +262,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                         emoji::lookup_by_glyph::lookup(&emoji.emoji).map(|emoji| emoji.name);
 
                     Ok(html! {
-                        figure class="callout" {
+                        figure id=(block.id.replace("-", "")) class="callout" {
                             div {
                                 span role="img" aria-label=[label] {
                                     (emoji.emoji)
@@ -284,7 +284,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                     let src = path.to_str().unwrap();
 
                     let markup = html! {
-                        figure class="callout" {
+                        figure id=(block.id.replace("-", "")) class="callout" {
                             div {
                                 img src=(src);
                             }
@@ -1169,9 +1169,9 @@ mod tests {
         assert_eq!(
             markup,
             vec![
-                r#"<figure class="callout"><div><span role="img" aria-label="warning">⚠️</span></div><div>Some really spooky callout.</div></figure>"#,
-                r#"<figure class="callout"><div><img src="media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"></div><div>Some really spooky callout.</div></figure>"#,
-                r#"<figure class="callout"><div><img src="media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"></div><div>Some really spooky callout.</div></figure>"#
+                r#"<figure id="b7363fedd7cd4abaa86ff51763f4ce91" class="callout"><div><span role="img" aria-label="warning">⚠️</span></div><div>Some really spooky callout.</div></figure>"#,
+                r#"<figure id="28c719a398454f089e871fe78e50e92b" class="callout"><div><img src="media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"></div><div>Some really spooky callout.</div></figure>"#,
+                r#"<figure id="66ea73701a3b4f4eada53be2f7e6ef73" class="callout"><div><img src="media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"></div><div>Some really spooky callout.</div></figure>"#
             ]
         );
         assert_eq!(
