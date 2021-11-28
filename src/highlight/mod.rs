@@ -22,7 +22,7 @@ const HIGHLIGHTS: [&str; 14] = [
     "variable",
 ];
 
-pub fn highlight(lang: &Language, code: &str) -> Result<Markup> {
+pub fn highlight(lang: &Language, code: &str, id: &str) -> Result<Markup> {
     // This converts the language because to serde_json::Value and since we are confident
     // that it's a Value of variant `Value::String` we call .as_str to get the content of
     // the string.
@@ -57,7 +57,7 @@ pub fn highlight(lang: &Language, code: &str) -> Result<Markup> {
         .context("Failed to render code")?;
 
     Ok(html! {
-        pre class=(lang_name) {
+        pre id=(id) class=(lang_name) {
             code class=(lang_name) {
                 @for line in renderer.lines() {
                     // TreeSitter HtmlRenderer already handles escaping

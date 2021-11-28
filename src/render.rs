@@ -103,7 +103,7 @@ fn render_list(
     let list = list.into_iter().map(|item| {
         if let (Some(text), Some(children)) = (item.get_text(), item.get_children()) {
             Ok::<_, anyhow::Error>(html! {
-                li {
+                li id=(item.id.replace("-", "")) {
                     (render_rich_text(text))
                     @for block in downloadables.extract(render_blocks(children, class)) {
                         (block?)
@@ -141,27 +141,27 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
 
     let result = match &block.ty {
         BlockType::HeadingOne { text } => Ok(html! {
-            h1 class=[class] {
+            h1 id=(block.id.replace("-", "")) class=[class] {
                 (render_rich_text(text))
             }
         }),
         BlockType::HeadingTwo { text } => Ok(html! {
-            h2 class=[class] {
+            h2 id=(block.id.replace("-", "")) class=[class] {
                 (render_rich_text(text))
             }
         }),
         BlockType::HeadingThree { text } => Ok(html! {
-            h3 class=[class] {
+            h3 id=(block.id.replace("-", "")) class=[class] {
                 (render_rich_text(text))
             }
         }),
         BlockType::Divider {} => Ok(html! {
-            hr;
+            hr id=(block.id.replace("-", ""));
         }),
         BlockType::Paragraph { text, children } => {
             if children.is_empty() {
                 Ok(html! {
-                    p class=[class] {
+                    p id=(block.id.replace("-", "")) class=[class] {
                         (render_rich_text(text))
                     }
                 })
@@ -169,7 +169,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 eprintln!("WARNING: Rendering a paragraph with children doesn't make sense as far as I am aware at least for the English language.\nThe HTML spec is strictly against it (rendering a <p> inside of a <p> is forbidden) but it's part of Notion's spec so we support it but emit this warning.\n\nRendering a paragraph with children doesn't give any indication to accessibility tools that anything about the children of this paragraph are special so it causes accessibility information loss.\n\nIf you have an actual use case for paragraphs inside of paragraphs please open an issue, I would love to be convinced of reasons to remove this warning or of good HTML ways to render paragraphs inside of paragraphs!");
 
                 Ok(html! {
-                    div class=[class] {
+                    div id=(block.id.replace("-", "")) class=[class] {
                         p {
                             (render_rich_text(text))
                         }
@@ -181,7 +181,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
             }
         }
         BlockType::Quote { text, children } => Ok(html! {
-            blockquote {
+            blockquote id=(block.id.replace("-", "")) {
                 (render_rich_text(text))
                 @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                     (child?)
@@ -194,12 +194,13 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 .get(0)
                 .context("Code block's RichText is empty")?
                 .plain_text,
+            &block.id.replace("-", ""),
         ),
         // The list items should only be reachable below if a block wasn't coalesced, thus it's
         // a list made of one item so we can safely render a list of one item
         BlockType::BulletedListItem { text, children } => Ok(html! {
             ul {
-                li {
+                li id=(block.id.replace("-", "")) {
                     (render_rich_text(text))
                     @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                         (child?)
@@ -209,7 +210,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
         }),
         BlockType::NumberedListItem { text, children } => Ok(html! {
             ol {
-                li {
+                li id=(block.id.replace("-", "")) {
                     (render_rich_text(text))
                     @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                         (child?)
@@ -229,7 +230,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 // Lack of alt text can be explained here
                 // https://stackoverflow.com/a/58468470/3018913
                 html! {
-                    figure {
+                    figure id=(block.id.replace("-", "")) {
                         img src=(src);
                         figcaption {
                             (caption)
@@ -240,7 +241,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
 
                 html! {
-                    img src=(src);
+                    img id=(block.id.replace("-", "")) src=(src);
                 }
             };
 
@@ -261,7 +262,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                         emoji::lookup_by_glyph::lookup(&emoji.emoji).map(|emoji| emoji.name);
 
                     Ok(html! {
-                        figure class="callout" {
+                        figure id=(block.id.replace("-", "")) class="callout" {
                             div {
                                 span role="img" aria-label=[label] {
                                     (emoji.emoji)
@@ -283,7 +284,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                     let src = path.to_str().unwrap();
 
                     let markup = html! {
-                        figure class="callout" {
+                        figure id=(block.id.replace("-", "")) class="callout" {
                             div {
                                 img src=(src);
                             }
@@ -303,7 +304,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
             }
         }
         _ => Ok(html! {
-            h4 style="color: red;" class=[class] {
+            h4 id=(block.id.replace("-", "")) style="color: red;" class=[class] {
                 "UNSUPPORTED FEATURE: " (block.name())
             }
         }),
@@ -448,7 +449,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            r#"<h4 style="color: red;">UNSUPPORTED FEATURE: table_of_contents</h4>"#
+            r#"<h4 id="eb39a20e10364469b750a9df8f4f18df" style="color: red;">UNSUPPORTED FEATURE: table_of_contents</h4>"#
         );
         assert_eq!(downloadables, vec![]);
     }
@@ -484,7 +485,10 @@ mod tests {
         let (markup, downloadables) = render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
-        assert_eq!(markup, "<h1>Cool test</h1>");
+        assert_eq!(
+            markup,
+            r#"<h1 id="8cac60c274b9408cacbd0895cfd7b7f8">Cool test</h1>"#
+        );
         assert_eq!(downloadables, vec![]);
 
         let block = Block {
@@ -516,7 +520,10 @@ mod tests {
         let (markup, downloadables) = render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
-        assert_eq!(markup, "<h2>Cooler test</h2>");
+        assert_eq!(
+            markup,
+            r#"<h2 id="8042c69c49e7420ba49839b9d61c43d0">Cooler test</h2>"#
+        );
         assert_eq!(downloadables, vec![]);
 
         let block = Block {
@@ -548,7 +555,10 @@ mod tests {
         let (markup, downloadables) = render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
-        assert_eq!(markup, "<h3>Coolest test</h3>");
+        assert_eq!(
+            markup,
+            r#"<h3 id="7f54fffa61084a49b8e9587afe7ac08f">Coolest test</h3>"#
+        );
         assert_eq!(downloadables, vec![]);
     }
 
@@ -567,7 +577,7 @@ mod tests {
         let (markup, downloadables) = render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
-        assert_eq!(markup, "<hr>");
+        assert_eq!(markup, r#"<hr id="5e845049255f423296fd6f20449be0bc">"#);
         assert_eq!(downloadables, vec![]);
     }
 
@@ -603,7 +613,10 @@ mod tests {
         let (markup, downloadables) = render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
-        assert_eq!(markup, "<p>Cool test</p>");
+        assert_eq!(
+            markup,
+            r#"<p id="64740ca63a0646948845401688334ef5">Cool test</p>"#
+        );
         assert_eq!(downloadables, vec![]);
 
         let block = Block {
@@ -701,7 +714,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            r#"<div><p>Or you can just leave an empty line in between if you want it to leave extra breathing room.</p><div class="indent"><p>You can also create these rather interesting nested paragraphs</p><p class="indent">Possibly more than once too!</p></div></div>"#
+            r#"<div id="4f2efd79ae9a4684827c6b69743d6c5d"><p>Or you can just leave an empty line in between if you want it to leave extra breathing room.</p><div id="4fb9dd792fc745b1b3a28efae49992ed" class="indent"><p>You can also create these rather interesting nested paragraphs</p><p id="817c0ca1721a4565ac54eedbbe471f0b" class="indent">Possibly more than once too!</p></div></div>"#
         );
         assert_eq!(downloadables, vec![]);
     }
@@ -743,7 +756,8 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            "<blockquote>If you think you can do a thing or think you can’t do a thing, you’re right.\n—Henry Ford</blockquote>"
+            r#"<blockquote id="191b3d44a37f40c4bb4f3477359022fd">If you think you can do a thing or think you can’t do a thing, you’re right.
+—Henry Ford</blockquote>"#
         );
         assert_eq!(downloadables, vec![]);
     }
@@ -785,7 +799,8 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            r#"<pre class="rust"><code class="rust">"#.to_string()
+            r#"<pre id="bf0128fd3b854d85aadae500dcbcda35" class="rust"><code class="rust">"#
+                .to_string()
                 + r#"<span class="keyword">struct</span> <span class="type">Magic</span><span class="punctuation">&lt;</span><span class="type">T</span><span class="punctuation">&gt;</span> <span class="punctuation">{</span>"#
                 + "\n"
                 + r#"    <span class="variable">value</span>: <span class="type">T</span>"#
@@ -952,7 +967,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            r#"<ul><li>This is some cool list<ol><li>It can even contain other lists inside of it<ul><li>And those lists can contain OTHER LISTS!<ol class="indent"><li>Listception</li><li>Listception</li></ol></li></ul></li></ol></li></ul>"#
+            r#"<ul><li id="844b3fdf56884f6c91e897b4f0e436cd">This is some cool list<ol><li id="c3e9c471d4b347dcab6a6ecd4dda161a">It can even contain other lists inside of it<ul><li id="55d7294249f649f98adee3d049f682e5">And those lists can contain OTHER LISTS!<ol class="indent"><li id="100116e20a4749038b794ac9cc3a7870">Listception</li><li id="c1a5555a8359499980dc10241d262071">Listception</li></ol></li></ul></li></ol></li></ul>"#
         );
         assert_eq!(downloadables, vec![]);
     }
@@ -1023,8 +1038,8 @@ mod tests {
         assert_eq!(
             markup,
             vec![
-                r#"<figure><img src="media/5ac94d7e-25de-4fa3-a781-0a43aac9d5c4.png"><figcaption>Circle rendered in Bevy</figcaption></figure>"#,
-                r#"<img src="media/d1e5e2c5-4351-4b8e-83a3-20ef532967a7">"#
+                r#"<figure id="5ac94d7e25de4fa3a7810a43aac9d5c4"><img src="media/5ac94d7e-25de-4fa3-a781-0a43aac9d5c4.png"><figcaption>Circle rendered in Bevy</figcaption></figure>"#,
+                r#"<img id="d1e5e2c543514b8e83a320ef532967a7" src="media/d1e5e2c5-4351-4b8e-83a3-20ef532967a7">"#
             ]
         );
         assert_eq!(
@@ -1154,9 +1169,9 @@ mod tests {
         assert_eq!(
             markup,
             vec![
-                r#"<figure class="callout"><div><span role="img" aria-label="warning">⚠️</span></div><div>Some really spooky callout.</div></figure>"#,
-                r#"<figure class="callout"><div><img src="media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"></div><div>Some really spooky callout.</div></figure>"#,
-                r#"<figure class="callout"><div><img src="media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"></div><div>Some really spooky callout.</div></figure>"#
+                r#"<figure id="b7363fedd7cd4abaa86ff51763f4ce91" class="callout"><div><span role="img" aria-label="warning">⚠️</span></div><div>Some really spooky callout.</div></figure>"#,
+                r#"<figure id="28c719a398454f089e871fe78e50e92b" class="callout"><div><img src="media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"></div><div>Some really spooky callout.</div></figure>"#,
+                r#"<figure id="66ea73701a3b4f4eada53be2f7e6ef73" class="callout"><div><img src="media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"></div><div>Some really spooky callout.</div></figure>"#
             ]
         );
         assert_eq!(
