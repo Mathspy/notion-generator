@@ -105,6 +105,12 @@ pub enum Color {
     RedBackground,
 }
 
+impl Default for Color {
+    fn default() -> Self {
+        Color::Default
+    }
+}
+
 // ------------------ NOTION BLOCK OBJECT ------------------
 // As defined in https://developers.notion.com/reference/block
 #[derive(Debug, Deserialize, PartialEq)]
