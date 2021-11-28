@@ -71,7 +71,7 @@ pub struct RichTextLink {
     pub url: String,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Default, Deserialize, PartialEq)]
 pub struct Annotations {
     pub bold: bool,
     pub italic: bool,
