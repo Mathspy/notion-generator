@@ -194,6 +194,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 .get(0)
                 .context("Code block's RichText is empty")?
                 .plain_text,
+            &block.id.replace("-", ""),
         ),
         // The list items should only be reachable below if a block wasn't coalesced, thus it's
         // a list made of one item so we can safely render a list of one item
@@ -798,7 +799,8 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            r#"<pre class="rust"><code class="rust">"#.to_string()
+            r#"<pre id="bf0128fd3b854d85aadae500dcbcda35" class="rust"><code class="rust">"#
+                .to_string()
                 + r#"<span class="keyword">struct</span> <span class="type">Magic</span><span class="punctuation">&lt;</span><span class="type">T</span><span class="punctuation">&gt;</span> <span class="punctuation">{</span>"#
                 + "\n"
                 + r#"    <span class="variable">value</span>: <span class="type">T</span>"#
