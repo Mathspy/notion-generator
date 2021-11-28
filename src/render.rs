@@ -181,7 +181,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
             }
         }
         BlockType::Quote { text, children } => Ok(html! {
-            blockquote {
+            blockquote id=(block.id.replace("-", "")) {
                 (render_rich_text(text))
                 @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                     (child?)
@@ -755,7 +755,8 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            "<blockquote>If you think you can do a thing or think you can’t do a thing, you’re right.\n—Henry Ford</blockquote>"
+            r#"<blockquote id="191b3d44a37f40c4bb4f3477359022fd">If you think you can do a thing or think you can’t do a thing, you’re right.
+—Henry Ford</blockquote>"#
         );
         assert_eq!(downloadables, vec![]);
     }
