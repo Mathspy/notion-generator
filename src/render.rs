@@ -103,7 +103,7 @@ fn render_list(
     let list = list.into_iter().map(|item| {
         if let (Some(text), Some(children)) = (item.get_text(), item.get_children()) {
             Ok::<_, anyhow::Error>(html! {
-                li {
+                li id=(item.id.replace("-", "")) {
                     (render_rich_text(text))
                     @for block in downloadables.extract(render_blocks(children, class)) {
                         (block?)
@@ -200,7 +200,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
         // a list made of one item so we can safely render a list of one item
         BlockType::BulletedListItem { text, children } => Ok(html! {
             ul {
-                li {
+                li id=(block.id.replace("-", "")) {
                     (render_rich_text(text))
                     @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                         (child?)
@@ -210,7 +210,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
         }),
         BlockType::NumberedListItem { text, children } => Ok(html! {
             ol {
-                li {
+                li id=(block.id.replace("-", "")) {
                     (render_rich_text(text))
                     @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                         (child?)
@@ -967,7 +967,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            r#"<ul><li>This is some cool list<ol><li>It can even contain other lists inside of it<ul><li>And those lists can contain OTHER LISTS!<ol class="indent"><li>Listception</li><li>Listception</li></ol></li></ul></li></ol></li></ul>"#
+            r#"<ul><li id="844b3fdf56884f6c91e897b4f0e436cd">This is some cool list<ol><li id="c3e9c471d4b347dcab6a6ecd4dda161a">It can even contain other lists inside of it<ul><li id="55d7294249f649f98adee3d049f682e5">And those lists can contain OTHER LISTS!<ol class="indent"><li id="100116e20a4749038b794ac9cc3a7870">Listception</li><li id="c1a5555a8359499980dc10241d262071">Listception</li></ol></li></ul></li></ol></li></ul>"#
         );
         assert_eq!(downloadables, vec![]);
     }
