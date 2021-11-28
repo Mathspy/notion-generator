@@ -141,17 +141,17 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
 
     let result = match &block.ty {
         BlockType::HeadingOne { text } => Ok(html! {
-            h1 class=[class] {
+            h1 id=(block.id.replace("-", "")) class=[class] {
                 (render_rich_text(text))
             }
         }),
         BlockType::HeadingTwo { text } => Ok(html! {
-            h2 class=[class] {
+            h2 id=(block.id.replace("-", "")) class=[class] {
                 (render_rich_text(text))
             }
         }),
         BlockType::HeadingThree { text } => Ok(html! {
-            h3 class=[class] {
+            h3 id=(block.id.replace("-", "")) class=[class] {
                 (render_rich_text(text))
             }
         }),
@@ -484,7 +484,10 @@ mod tests {
         let (markup, downloadables) = render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
-        assert_eq!(markup, "<h1>Cool test</h1>");
+        assert_eq!(
+            markup,
+            r#"<h1 id="8cac60c274b9408cacbd0895cfd7b7f8">Cool test</h1>"#
+        );
         assert_eq!(downloadables, vec![]);
 
         let block = Block {
@@ -516,7 +519,10 @@ mod tests {
         let (markup, downloadables) = render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
-        assert_eq!(markup, "<h2>Cooler test</h2>");
+        assert_eq!(
+            markup,
+            r#"<h2 id="8042c69c49e7420ba49839b9d61c43d0">Cooler test</h2>"#
+        );
         assert_eq!(downloadables, vec![]);
 
         let block = Block {
@@ -548,7 +554,10 @@ mod tests {
         let (markup, downloadables) = render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
-        assert_eq!(markup, "<h3>Coolest test</h3>");
+        assert_eq!(
+            markup,
+            r#"<h3 id="7f54fffa61084a49b8e9587afe7ac08f">Coolest test</h3>"#
+        );
         assert_eq!(downloadables, vec![]);
     }
 
