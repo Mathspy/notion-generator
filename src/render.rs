@@ -467,14 +467,7 @@ mod tests {
                 text: vec![RichText {
                     plain_text: "Cool test".to_string(),
                     href: None,
-                    annotations: Annotations {
-                        bold: false,
-                        italic: false,
-                        strikethrough: false,
-                        underline: false,
-                        code: false,
-                        color: Color::Default,
-                    },
+                    annotations: Default::default(),
                     ty: RichTextType::Text {
                         content: "Cool test".to_string(),
                         link: None,
@@ -502,14 +495,7 @@ mod tests {
                 text: vec![RichText {
                     plain_text: "Cooler test".to_string(),
                     href: None,
-                    annotations: Annotations {
-                        bold: false,
-                        italic: false,
-                        strikethrough: false,
-                        underline: false,
-                        code: false,
-                        color: Color::Default,
-                    },
+                    annotations: Default::default(),
                     ty: RichTextType::Text {
                         content: "Cooler test".to_string(),
                         link: None,
@@ -537,14 +523,7 @@ mod tests {
                 text: vec![RichText {
                     plain_text: "Coolest test".to_string(),
                     href: None,
-                    annotations: Annotations {
-                        bold: false,
-                        italic: false,
-                        strikethrough: false,
-                        underline: false,
-                        code: false,
-                        color: Color::Default,
-                    },
+                    annotations: Default::default(),
                     ty: RichTextType::Text {
                         content: "Coolest test".to_string(),
                         link: None,
@@ -594,14 +573,7 @@ mod tests {
                 text: vec![RichText {
                     plain_text: "Cool test".to_string(),
                     href: None,
-                    annotations: Annotations {
-                        bold: false,
-                        italic: false,
-                        strikethrough: false,
-                        underline: false,
-                        code: false,
-                        color: Color::Default,
-                    },
+                    annotations: Default::default(),
                     ty: RichTextType::Text {
                         content: "Cool test".to_string(),
                         link: None,
@@ -631,14 +603,7 @@ mod tests {
                     RichText {
                         plain_text: "Or you can just leave an empty line in between if you want it to leave extra breathing room.".to_string(),
                         href: None,
-                        annotations: Annotations {
-                            bold: false,
-                            italic: false,
-                            strikethrough: false,
-                            underline: false,
-                            code: false,
-                            color: Color::Default,
-                        },
+                        annotations: Default::default(),
                         ty: RichTextType::Text {
                             content: "Or you can just leave an empty line in between if you want it to leave extra breathing room.".to_string(),
                             link: None,
@@ -658,14 +623,7 @@ mod tests {
                                 RichText {
                                     plain_text: "You can also create these rather interesting nested paragraphs".to_string(),
                                     href: None,
-                                    annotations: Annotations {
-                                        bold: false,
-                                        italic: false,
-                                        strikethrough: false,
-                                        underline: false,
-                                        code: false,
-                                        color: Color::Default,
-                                    },
+                                    annotations: Default::default(),
                                     ty: RichTextType::Text {
                                         content: "You can also create these rather interesting nested paragraphs".to_string(),
                                         link: None,
@@ -685,14 +643,7 @@ mod tests {
                                             RichText {
                                                 plain_text: "Possibly more than once too!".to_string(),
                                                 href: None,
-                                                annotations: Annotations {
-                                                    bold: false,
-                                                    italic: false,
-                                                    strikethrough: false,
-                                                    underline: false,
-                                                    code: false,
-                                                    color: Color::Default,
-                                                },
+                                                annotations: Default::default(),
                                                 ty: RichTextType::Text {
                                                     content: "Possibly more than once too!".to_string(),
                                                     link: None,
@@ -733,14 +684,7 @@ mod tests {
                     RichText {
                         plain_text: "If you think you can do a thing or think you can’t do a thing, you’re right.\n—Henry Ford".to_string(),
                         href: None,
-                        annotations: Annotations {
-                            bold: false,
-                            italic: false,
-                            strikethrough: false,
-                            underline: false,
-                            code: false,
-                            color: Color::Default,
-                        },
+                        annotations: Default::default(),
                         ty: RichTextType::Text {
                             content: "If you think you can do a thing or think you can’t do a thing, you’re right.\n—Henry Ford".to_string(),
                             link: None,
@@ -777,14 +721,7 @@ mod tests {
                     RichText {
                         plain_text: "struct Magic<T> {\n    value: T\n}\n\nfn cool() -> Magic<T> {\n    return Magic {\n        value: 100\n    };\n}".to_string(),
                         href: None,
-                        annotations: Annotations {
-                            bold: false,
-                            italic: false,
-                            strikethrough: false,
-                            underline: false,
-                            code: false,
-                            color: Color::Default,
-                        },
+                        annotations: Default::default(),
                         ty: RichTextType::Text {
                             content: "struct Magic<T> {\n    value: T\n}\n\nfn cool() -> Magic<T> {\n    return Magic {\n        value: 100\n    };\n}".to_string(),
                             link: None,
@@ -836,14 +773,7 @@ mod tests {
                 text: vec![RichText {
                     plain_text: "This is some cool list".to_string(),
                     href: None,
-                    annotations: Annotations {
-                        bold: false,
-                        italic: false,
-                        strikethrough: false,
-                        underline: false,
-                        code: false,
-                        color: Color::Default,
-                    },
+                    annotations: Default::default(),
                     ty: RichTextType::Text {
                         content: "This is some cool list".to_string(),
                         link: None,
@@ -860,14 +790,7 @@ mod tests {
                         text: vec![RichText {
                             plain_text: "It can even contain other lists inside of it".to_string(),
                             href: None,
-                            annotations: Annotations {
-                                bold: false,
-                                italic: false,
-                                strikethrough: false,
-                                underline: false,
-                                code: false,
-                                color: Color::Default,
-                            },
+                            annotations: Default::default(),
                             ty: RichTextType::Text {
                                 content: "It can even contain other lists inside of it".to_string(),
                                 link: None,
@@ -885,14 +808,7 @@ mod tests {
                                     plain_text: "And those lists can contain OTHER LISTS!"
                                         .to_string(),
                                     href: None,
-                                    annotations: Annotations {
-                                        bold: false,
-                                        italic: false,
-                                        strikethrough: false,
-                                        underline: false,
-                                        code: false,
-                                        color: Color::Default,
-                                    },
+                                    annotations: Default::default(),
                                     ty: RichTextType::Text {
                                         content: "And those lists can contain OTHER LISTS!"
                                             .to_string(),
@@ -911,14 +827,7 @@ mod tests {
                                             text: vec![RichText {
                                                 plain_text: "Listception".to_string(),
                                                 href: None,
-                                                annotations: Annotations {
-                                                    bold: false,
-                                                    italic: false,
-                                                    strikethrough: false,
-                                                    underline: false,
-                                                    code: false,
-                                                    color: Color::Default,
-                                                },
+                                                annotations: Default::default(),
                                                 ty: RichTextType::Text {
                                                     content: "Listception".to_string(),
                                                     link: None,
@@ -938,14 +847,7 @@ mod tests {
                                             text: vec![RichText {
                                                 plain_text: "Listception".to_string(),
                                                 href: None,
-                                                annotations: Annotations {
-                                                    bold: false,
-                                                    italic: false,
-                                                    strikethrough: false,
-                                                    underline: false,
-                                                    code: false,
-                                                    color: Color::Default,
-                                                },
+                                                annotations: Default::default(),
                                                 ty: RichTextType::Text {
                                                     content: "Listception".to_string(),
                                                     link: None,
@@ -991,14 +893,7 @@ mod tests {
                                 RichText {
                                     plain_text: "Circle rendered in Bevy".to_string(),
                                     href: None,
-                                    annotations: Annotations {
-                                        bold: false,
-                                        italic: false,
-                                        strikethrough: false,
-                                        underline: false,
-                                        code: false,
-                                        color: Color::Default,
-                                    },
+                                    annotations: Default::default(),
                                     ty: RichTextType::Text {
                                         content: "Circle rendered in Bevy".to_string(),
                                         link: None,
@@ -1071,14 +966,7 @@ mod tests {
                     text: vec![RichText {
                         plain_text: "Some really spooky callout.".to_string(),
                         href: None,
-                        annotations: Annotations {
-                            bold: false,
-                            italic: false,
-                            strikethrough: false,
-                            underline: false,
-                            code: false,
-                            color: Color::Default,
-                        },
+                        annotations: Default::default(),
                         ty: RichTextType::Text {
                             content: "Some really spooky callout.".to_string(),
                             link: None,
@@ -1101,14 +989,7 @@ mod tests {
                     text: vec![RichText {
                         plain_text: "Some really spooky callout.".to_string(),
                         href: None,
-                        annotations: Annotations {
-                            bold: false,
-                            italic: false,
-                            strikethrough: false,
-                            underline: false,
-                            code: false,
-                            color: Color::Default,
-                        },
+                        annotations: Default::default(),
                         ty: RichTextType::Text {
                             content: "Some really spooky callout.".to_string(),
                             link: None,
@@ -1132,14 +1013,7 @@ mod tests {
                     text: vec![RichText {
                         plain_text: "Some really spooky callout.".to_string(),
                         href: None,
-                        annotations: Annotations {
-                            bold: false,
-                            italic: false,
-                            strikethrough: false,
-                            underline: false,
-                            code: false,
-                            color: Color::Default,
-                        },
+                        annotations: Default::default(),
                         ty: RichTextType::Text {
                             content: "Some really spooky callout.".to_string(),
                             link: None,
@@ -1194,14 +1068,7 @@ mod tests {
         let text = RichText {
             href: None,
             plain_text: "I love you!".to_string(),
-            annotations: Annotations {
-                bold: false,
-                italic: false,
-                strikethrough: false,
-                underline: false,
-                code: false,
-                color: Color::Default,
-            },
+            annotations: Default::default(),
             ty: RichTextType::Text {
                 content: "I love you!".to_string(),
                 link: None,
@@ -1212,14 +1079,7 @@ mod tests {
         let text = RichText {
             href: None,
             plain_text: "a > 5 but < 3 how?".to_string(),
-            annotations: Annotations {
-                bold: false,
-                italic: false,
-                strikethrough: false,
-                underline: false,
-                code: false,
-                color: Color::Default,
-            },
+            annotations: Default::default(),
             ty: RichTextType::Text {
                 content: "a > 5 but < 3 how?".to_string(),
                 link: None,
@@ -1279,14 +1139,7 @@ mod tests {
         let text = RichText {
             href: None,
             plain_text: "f(x)=y".to_string(),
-            annotations: Annotations {
-                bold: false,
-                italic: false,
-                strikethrough: false,
-                underline: false,
-                code: false,
-                color: Color::Default,
-            },
+            annotations: Default::default(),
             ty: RichTextType::Equation {
                 expression: "f(x)=y".to_string(),
             },
