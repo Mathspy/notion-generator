@@ -158,7 +158,7 @@ async fn main() -> Result<()> {
     )
     .context("Failed to parse head partial as utf8")?;
     let (markup, downloadables) =
-        render::render_page(blocks, head).context("Failed to render page")?;
+        render::render_page(blocks, head, opts.heading_anchors).context("Failed to render page")?;
 
     let write_markup = async {
         tokio::fs::write(opts.output.join("index.html"), markup.0)
