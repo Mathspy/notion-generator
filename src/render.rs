@@ -441,7 +441,7 @@ fn render_heading_link_icon(heading_anchors: HeadingAnchors, id: &str) -> Markup
     match heading_anchors {
         HeadingAnchors::Icon => {
             let mut link = String::with_capacity(HEADING_LINK_ICON_LENGTH);
-            link.push_str("#");
+            link.push('#');
             link.push_str(id);
 
             html! {
