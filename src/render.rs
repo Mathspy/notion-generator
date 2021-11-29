@@ -139,29 +139,31 @@ fn render_list(
 fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloadables)> {
     let mut downloadables = Downloadables::new();
 
+    let id = block.id.replace("-", "");
+
     let result = match &block.ty {
         BlockType::HeadingOne { text } => Ok(html! {
-            h1 id=(block.id.replace("-", "")) class=[class] {
+            h1 id=(id) class=[class] {
                 (render_rich_text(text))
             }
         }),
         BlockType::HeadingTwo { text } => Ok(html! {
-            h2 id=(block.id.replace("-", "")) class=[class] {
+            h2 id=(id) class=[class] {
                 (render_rich_text(text))
             }
         }),
         BlockType::HeadingThree { text } => Ok(html! {
-            h3 id=(block.id.replace("-", "")) class=[class] {
+            h3 id=(id) class=[class] {
                 (render_rich_text(text))
             }
         }),
         BlockType::Divider {} => Ok(html! {
-            hr id=(block.id.replace("-", ""));
+            hr id=(id);
         }),
         BlockType::Paragraph { text, children } => {
             if children.is_empty() {
                 Ok(html! {
-                    p id=(block.id.replace("-", "")) class=[class] {
+                    p id=(id) class=[class] {
                         (render_rich_text(text))
                     }
                 })
@@ -169,7 +171,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 eprintln!("WARNING: Rendering a paragraph with children doesn't make sense as far as I am aware at least for the English language.\nThe HTML spec is strictly against it (rendering a <p> inside of a <p> is forbidden) but it's part of Notion's spec so we support it but emit this warning.\n\nRendering a paragraph with children doesn't give any indication to accessibility tools that anything about the children of this paragraph are special so it causes accessibility information loss.\n\nIf you have an actual use case for paragraphs inside of paragraphs please open an issue, I would love to be convinced of reasons to remove this warning or of good HTML ways to render paragraphs inside of paragraphs!");
 
                 Ok(html! {
-                    div id=(block.id.replace("-", "")) class=[class] {
+                    div id=(id) class=[class] {
                         p {
                             (render_rich_text(text))
                         }
@@ -181,7 +183,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
             }
         }
         BlockType::Quote { text, children } => Ok(html! {
-            blockquote id=(block.id.replace("-", "")) {
+            blockquote id=(id) {
                 (render_rich_text(text))
                 @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                     (child?)
@@ -194,13 +196,13 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 .get(0)
                 .context("Code block's RichText is empty")?
                 .plain_text,
-            &block.id.replace("-", ""),
+            &id,
         ),
         // The list items should only be reachable below if a block wasn't coalesced, thus it's
         // a list made of one item so we can safely render a list of one item
         BlockType::BulletedListItem { text, children } => Ok(html! {
             ul {
-                li id=(block.id.replace("-", "")) {
+                li id=(id) {
                     (render_rich_text(text))
                     @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                         (child?)
@@ -210,7 +212,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
         }),
         BlockType::NumberedListItem { text, children } => Ok(html! {
             ol {
-                li id=(block.id.replace("-", "")) {
+                li id=(id) {
                     (render_rich_text(text))
                     @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
                         (child?)
@@ -230,7 +232,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 // Lack of alt text can be explained here
                 // https://stackoverflow.com/a/58468470/3018913
                 html! {
-                    figure id=(block.id.replace("-", "")) {
+                    figure id=(id) {
                         img src=(src);
                         figcaption {
                             (caption)
@@ -241,7 +243,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
 
                 html! {
-                    img id=(block.id.replace("-", "")) src=(src);
+                    img id=(id) src=(src);
                 }
             };
 
@@ -262,7 +264,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                         emoji::lookup_by_glyph::lookup(&emoji.emoji).map(|emoji| emoji.name);
 
                     Ok(html! {
-                        figure id=(block.id.replace("-", "")) class="callout" {
+                        figure id=(id) class="callout" {
                             div {
                                 span role="img" aria-label=[label] {
                                     (emoji.emoji)
@@ -284,7 +286,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                     let src = path.to_str().unwrap();
 
                     let markup = html! {
-                        figure id=(block.id.replace("-", "")) class="callout" {
+                        figure id=(id) class="callout" {
                             div {
                                 img src=(src);
                             }
@@ -304,7 +306,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
             }
         }
         _ => Ok(html! {
-            h4 id=(block.id.replace("-", "")) style="color: red;" class=[class] {
+            h4 id=(id) style="color: red;" class=[class] {
                 "UNSUPPORTED FEATURE: " (block.name())
             }
         }),
