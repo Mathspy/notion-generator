@@ -9,7 +9,7 @@ use clap::Parser;
 use futures_util::stream::{self, FuturesOrdered, StreamExt};
 use reqwest::Client;
 use response::{Block, Error, List};
-use std::{ops::Not, path::PathBuf};
+use std::{fmt, ops::Not, path::PathBuf, str::FromStr};
 
 #[async_recursion]
 async fn get_block_children(
@@ -86,6 +86,35 @@ async fn get_block_children(
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum HeadingAnchors {
+    None,
+    Icon,
+}
+
+#[derive(Debug)]
+pub struct HeadingAnchorsParseError;
+impl fmt::Display for HeadingAnchorsParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Expected either `none` or `icon`")?;
+
+        Ok(())
+    }
+}
+impl std::error::Error for HeadingAnchorsParseError {}
+
+impl FromStr for HeadingAnchors {
+    type Err = HeadingAnchorsParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "none" => Ok(HeadingAnchors::None),
+            "icon" => Ok(HeadingAnchors::Icon),
+            _ => Err(HeadingAnchorsParseError),
+        }
+    }
+}
+
 /// Generate an HTML page from a Notion document
 #[derive(Parser)]
 struct Opts {
@@ -101,6 +130,9 @@ struct Opts {
     /// A level of verbosity, and can be used multiple times
     #[clap(short, long, parse(from_occurrences))]
     verbose: u8,
+    /// Whether to include a link icon next to headings or not
+    #[clap(long, default_value = "none")]
+    heading_anchors: HeadingAnchors,
 }
 
 #[tokio::main]
@@ -126,7 +158,7 @@ async fn main() -> Result<()> {
     )
     .context("Failed to parse head partial as utf8")?;
     let (markup, downloadables) =
-        render::render_page(blocks, head).context("Failed to render page")?;
+        render::render_page(blocks, head, opts.heading_anchors).context("Failed to render page")?;
 
     let write_markup = async {
         tokio::fs::write(opts.output.join("index.html"), markup.0)

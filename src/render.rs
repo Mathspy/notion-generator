@@ -1,6 +1,7 @@
 use crate::download::{Downloadable, Downloadables, FILES_DIR};
 use crate::highlight::highlight;
 use crate::response::{Block, BlockType, EmojiOrFile, File, ListType, RichText, RichTextType};
+use crate::HeadingAnchors;
 use anyhow::{Context, Result};
 use itertools::Itertools;
 use maud::{html, Escaper, Markup, PreEscaped, Render, DOCTYPE};
@@ -51,9 +52,13 @@ impl<'a> std::ops::Add for BlockCoalition<'a> {
     }
 }
 
-pub fn render_page(blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
+pub fn render_page(
+    blocks: Vec<Block>,
+    head: String,
+    heading_anchors: HeadingAnchors,
+) -> Result<(Markup, Downloadables)> {
     let mut downloadables = Downloadables::new();
-    let rendered_blocks = downloadables.extract(render_blocks(&blocks, None));
+    let rendered_blocks = downloadables.extract(render_blocks(&blocks, None, heading_anchors));
 
     let markup = html! {
         (DOCTYPE)
@@ -82,14 +87,15 @@ pub fn render_page(blocks: Vec<Block>, head: String) -> Result<(Markup, Download
 fn render_blocks<'a>(
     blocks: &'a [Block],
     class: Option<&'a str>,
+    heading_anchors: HeadingAnchors,
 ) -> impl Iterator<Item = Result<(Markup, Downloadables)>> + 'a {
     blocks
         .iter()
         .map(BlockCoalition::Solo)
         .coalesce(|a, b| a + b)
         .map(move |coalition| match coalition {
-            BlockCoalition::List(ty, list) => render_list(ty, list, class),
-            BlockCoalition::Solo(block) => render_block(block, class),
+            BlockCoalition::List(ty, list) => render_list(ty, list, class, heading_anchors),
+            BlockCoalition::Solo(block) => render_block(block, class, heading_anchors),
         })
 }
 
@@ -97,6 +103,7 @@ fn render_list(
     ty: ListType,
     list: Vec<&Block>,
     class: Option<&str>,
+    heading_anchors: HeadingAnchors,
 ) -> Result<(Markup, Downloadables)> {
     let mut downloadables = Downloadables::new();
 
@@ -105,7 +112,7 @@ fn render_list(
             Ok::<_, anyhow::Error>(html! {
                 li id=(item.id.replace("-", "")) {
                     (render_rich_text(text))
-                    @for block in downloadables.extract(render_blocks(children, class)) {
+                    @for block in downloadables.extract(render_blocks(children, class, heading_anchors)) {
                         (block?)
                     }
                 }
@@ -136,32 +143,41 @@ fn render_list(
     result.map(|markup| (markup, downloadables))
 }
 
-fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloadables)> {
+fn render_block(
+    block: &Block,
+    class: Option<&str>,
+    heading_anchors: HeadingAnchors,
+) -> Result<(Markup, Downloadables)> {
     let mut downloadables = Downloadables::new();
+
+    let id = block.id.replace("-", "");
 
     let result = match &block.ty {
         BlockType::HeadingOne { text } => Ok(html! {
-            h1 id=(block.id.replace("-", "")) class=[class] {
+            h1 id=(id) class=[class] {
+                (render_heading_link_icon(heading_anchors, &id))
                 (render_rich_text(text))
             }
         }),
         BlockType::HeadingTwo { text } => Ok(html! {
-            h2 id=(block.id.replace("-", "")) class=[class] {
+            h2 id=(id) class=[class] {
+                (render_heading_link_icon(heading_anchors, &id))
                 (render_rich_text(text))
             }
         }),
         BlockType::HeadingThree { text } => Ok(html! {
-            h3 id=(block.id.replace("-", "")) class=[class] {
+            h3 id=(id) class=[class] {
+                (render_heading_link_icon(heading_anchors, &id))
                 (render_rich_text(text))
             }
         }),
         BlockType::Divider {} => Ok(html! {
-            hr id=(block.id.replace("-", ""));
+            hr id=(id);
         }),
         BlockType::Paragraph { text, children } => {
             if children.is_empty() {
                 Ok(html! {
-                    p id=(block.id.replace("-", "")) class=[class] {
+                    p id=(id) class=[class] {
                         (render_rich_text(text))
                     }
                 })
@@ -169,11 +185,11 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 eprintln!("WARNING: Rendering a paragraph with children doesn't make sense as far as I am aware at least for the English language.\nThe HTML spec is strictly against it (rendering a <p> inside of a <p> is forbidden) but it's part of Notion's spec so we support it but emit this warning.\n\nRendering a paragraph with children doesn't give any indication to accessibility tools that anything about the children of this paragraph are special so it causes accessibility information loss.\n\nIf you have an actual use case for paragraphs inside of paragraphs please open an issue, I would love to be convinced of reasons to remove this warning or of good HTML ways to render paragraphs inside of paragraphs!");
 
                 Ok(html! {
-                    div id=(block.id.replace("-", "")) class=[class] {
+                    div id=(id) class=[class] {
                         p {
                             (render_rich_text(text))
                         }
-                        @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
+                        @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
                             (child?)
                         }
                     }
@@ -181,9 +197,9 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
             }
         }
         BlockType::Quote { text, children } => Ok(html! {
-            blockquote id=(block.id.replace("-", "")) {
+            blockquote id=(id) {
                 (render_rich_text(text))
-                @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
+                @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
                     (child?)
                 }
             }
@@ -194,15 +210,15 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 .get(0)
                 .context("Code block's RichText is empty")?
                 .plain_text,
-            &block.id.replace("-", ""),
+            &id,
         ),
         // The list items should only be reachable below if a block wasn't coalesced, thus it's
         // a list made of one item so we can safely render a list of one item
         BlockType::BulletedListItem { text, children } => Ok(html! {
             ul {
-                li id=(block.id.replace("-", "")) {
+                li id=(id) {
                     (render_rich_text(text))
-                    @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
+                    @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
                         (child?)
                     }
                 }
@@ -210,9 +226,9 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
         }),
         BlockType::NumberedListItem { text, children } => Ok(html! {
             ol {
-                li id=(block.id.replace("-", "")) {
+                li id=(id) {
                     (render_rich_text(text))
-                    @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
+                    @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
                         (child?)
                     }
                 }
@@ -230,7 +246,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 // Lack of alt text can be explained here
                 // https://stackoverflow.com/a/58468470/3018913
                 html! {
-                    figure id=(block.id.replace("-", "")) {
+                    figure id=(id) {
                         img src=(src);
                         figcaption {
                             (caption)
@@ -241,7 +257,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                 eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
 
                 html! {
-                    img id=(block.id.replace("-", "")) src=(src);
+                    img id=(id) src=(src);
                 }
             };
 
@@ -262,7 +278,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                         emoji::lookup_by_glyph::lookup(&emoji.emoji).map(|emoji| emoji.name);
 
                     Ok(html! {
-                        figure id=(block.id.replace("-", "")) class="callout" {
+                        figure id=(id) class="callout" {
                             div {
                                 span role="img" aria-label=[label] {
                                     (emoji.emoji)
@@ -270,7 +286,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                             }
                             div {
                                 (render_rich_text(text))
-                                @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
+                                @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
                                     (child?)
                                 }
                             }
@@ -284,13 +300,13 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
                     let src = path.to_str().unwrap();
 
                     let markup = html! {
-                        figure id=(block.id.replace("-", "")) class="callout" {
+                        figure id=(id) class="callout" {
                             div {
                                 img src=(src);
                             }
                             div {
                                 (render_rich_text(text))
-                                @for child in downloadables.extract(render_blocks(children, Some("indent"))) {
+                                @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
                                     (child?)
                                 }
                             }
@@ -304,7 +320,7 @@ fn render_block(block: &Block, class: Option<&str>) -> Result<(Markup, Downloada
             }
         }
         _ => Ok(html! {
-            h4 id=(block.id.replace("-", "")) style="color: red;" class=[class] {
+            h4 id=(id) style="color: red;" class=[class] {
                 "UNSUPPORTED FEATURE: " (block.name())
             }
         }),
@@ -418,6 +434,39 @@ impl Render for RichText {
     }
 }
 
+const UUID_WITHOUT_DASHES_LENGTH: usize = 32;
+const HEADING_LINK_ICON_LENGTH: usize = 1 + UUID_WITHOUT_DASHES_LENGTH;
+
+fn render_heading_link_icon(heading_anchors: HeadingAnchors, id: &str) -> Markup {
+    match heading_anchors {
+        HeadingAnchors::Icon => {
+            let mut link = String::with_capacity(HEADING_LINK_ICON_LENGTH);
+            link.push_str("#");
+            link.push_str(id);
+
+            html! {
+                a href=(link) {
+                    (render_link_icon())
+                }
+            }
+        }
+        _ => PreEscaped(String::new()),
+    }
+}
+
+fn render_link_icon() -> Markup {
+    // Copied from Iconoir collection
+    // Source:
+    // https://github.com/lucaburgio/iconoir/blob/2bbe1f011c3a968206c8378430f5721b5b5545f3/icons/link.svg
+    //
+    // Reused under the terms and conditions of MIT license
+    //
+    // Copyright (c) Luca Burgio 2021
+    PreEscaped(String::from(
+        r#"<svg stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 11.9976C14 9.5059 11.683 7 8.85714 7C8.52241 7 7.41904 7.00001 7.14286 7.00001C4.30254 7.00001 2 9.23752 2 11.9976C2 14.376 3.70973 16.3664 6 16.8714C6.36756 16.9525 6.75006 16.9952 7.14286 16.9952" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11.9976C10 14.4893 12.317 16.9952 15.1429 16.9952C15.4776 16.9952 16.581 16.9952 16.8571 16.9952C19.6975 16.9952 22 14.7577 22 11.9976C22 9.6192 20.2903 7.62884 18 7.12383C17.6324 7.04278 17.2499 6.99999 16.8571 6.99999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>"#,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{render_block, render_blocks};
@@ -427,6 +476,7 @@ mod tests {
             Annotations, Block, BlockType, Color, Emoji, EmojiOrFile, File, Language, RichText,
             RichTextLink, RichTextType,
         },
+        HeadingAnchors,
     };
     use maud::Render;
     use pretty_assertions::assert_eq;
@@ -444,7 +494,7 @@ mod tests {
             ty: BlockType::TableOfContents {},
         };
 
-        let (markup, downloadables) = render_block(&block, None)
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -455,7 +505,7 @@ mod tests {
     }
 
     #[test]
-    fn render_headings() {
+    fn render_headings_without_anchors() {
         let block = Block {
             object: "block".to_string(),
             id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".to_string(),
@@ -475,7 +525,7 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = render_block(&block, None)
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -503,7 +553,7 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = render_block(&block, None)
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -531,12 +581,99 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = render_block(&block, None)
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
             markup,
             r#"<h3 id="7f54fffa61084a49b8e9587afe7ac08f">Coolest test</h3>"#
+        );
+        assert_eq!(downloadables, vec![]);
+    }
+
+    #[test]
+    fn render_headings_with_icon_anchors() {
+        let block = Block {
+            object: "block".to_string(),
+            id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".to_string(),
+            created_time: "2021-11-13T17:35:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::HeadingOne {
+                text: vec![RichText {
+                    plain_text: "Cool test".to_string(),
+                    href: None,
+                    annotations: Default::default(),
+                    ty: RichTextType::Text {
+                        content: "Cool test".to_string(),
+                        link: None,
+                    },
+                }],
+            },
+        };
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::Icon)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
+        assert_eq!(
+            markup,
+            r##"<h1 id="8cac60c274b9408cacbd0895cfd7b7f8"><a href="#8cac60c274b9408cacbd0895cfd7b7f8"><svg stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 11.9976C14 9.5059 11.683 7 8.85714 7C8.52241 7 7.41904 7.00001 7.14286 7.00001C4.30254 7.00001 2 9.23752 2 11.9976C2 14.376 3.70973 16.3664 6 16.8714C6.36756 16.9525 6.75006 16.9952 7.14286 16.9952" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11.9976C10 14.4893 12.317 16.9952 15.1429 16.9952C15.4776 16.9952 16.581 16.9952 16.8571 16.9952C19.6975 16.9952 22 14.7577 22 11.9976C22 9.6192 20.2903 7.62884 18 7.12383C17.6324 7.04278 17.2499 6.99999 16.8571 6.99999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></a>Cool test</h1>"##
+        );
+        assert_eq!(downloadables, vec![]);
+
+        let block = Block {
+            object: "block".to_string(),
+            id: "8042c69c-49e7-420b-a498-39b9d61c43d0".to_string(),
+            created_time: "2021-11-13T17:35:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::HeadingTwo {
+                text: vec![RichText {
+                    plain_text: "Cooler test".to_string(),
+                    href: None,
+                    annotations: Default::default(),
+                    ty: RichTextType::Text {
+                        content: "Cooler test".to_string(),
+                        link: None,
+                    },
+                }],
+            },
+        };
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::Icon)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
+        assert_eq!(
+            markup,
+            r##"<h2 id="8042c69c49e7420ba49839b9d61c43d0"><a href="#8042c69c49e7420ba49839b9d61c43d0"><svg stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 11.9976C14 9.5059 11.683 7 8.85714 7C8.52241 7 7.41904 7.00001 7.14286 7.00001C4.30254 7.00001 2 9.23752 2 11.9976C2 14.376 3.70973 16.3664 6 16.8714C6.36756 16.9525 6.75006 16.9952 7.14286 16.9952" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11.9976C10 14.4893 12.317 16.9952 15.1429 16.9952C15.4776 16.9952 16.581 16.9952 16.8571 16.9952C19.6975 16.9952 22 14.7577 22 11.9976C22 9.6192 20.2903 7.62884 18 7.12383C17.6324 7.04278 17.2499 6.99999 16.8571 6.99999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></a>Cooler test</h2>"##
+        );
+        assert_eq!(downloadables, vec![]);
+
+        let block = Block {
+            object: "block".to_string(),
+            id: "7f54fffa-6108-4a49-b8e9-587afe7ac08f".to_string(),
+            created_time: "2021-11-13T17:35:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::HeadingThree {
+                text: vec![RichText {
+                    plain_text: "Coolest test".to_string(),
+                    href: None,
+                    annotations: Default::default(),
+                    ty: RichTextType::Text {
+                        content: "Coolest test".to_string(),
+                        link: None,
+                    },
+                }],
+            },
+        };
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::Icon)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
+        assert_eq!(
+            markup,
+            r##"<h3 id="7f54fffa61084a49b8e9587afe7ac08f"><a href="#7f54fffa61084a49b8e9587afe7ac08f"><svg stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 11.9976C14 9.5059 11.683 7 8.85714 7C8.52241 7 7.41904 7.00001 7.14286 7.00001C4.30254 7.00001 2 9.23752 2 11.9976C2 14.376 3.70973 16.3664 6 16.8714C6.36756 16.9525 6.75006 16.9952 7.14286 16.9952" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11.9976C10 14.4893 12.317 16.9952 15.1429 16.9952C15.4776 16.9952 16.581 16.9952 16.8571 16.9952C19.6975 16.9952 22 14.7577 22 11.9976C22 9.6192 20.2903 7.62884 18 7.12383C17.6324 7.04278 17.2499 6.99999 16.8571 6.99999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></a>Coolest test</h3>"##
         );
         assert_eq!(downloadables, vec![]);
     }
@@ -553,7 +690,7 @@ mod tests {
             ty: BlockType::Divider {},
         };
 
-        let (markup, downloadables) = render_block(&block, None)
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(markup, r#"<hr id="5e845049255f423296fd6f20449be0bc">"#);
@@ -582,7 +719,7 @@ mod tests {
                 children: vec![],
             },
         };
-        let (markup, downloadables) = render_block(&block, None)
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -660,7 +797,7 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = render_block(&block, None)
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -695,7 +832,7 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = render_block(&block, None)
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -731,7 +868,7 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = render_block(&block, None)
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -864,7 +1001,7 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = render_block(&block, None)
+        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -918,7 +1055,7 @@ mod tests {
                     }
                 ];
 
-        let (markup, downloadables) = render_blocks(&blocks, None)
+        let (markup, downloadables) = render_blocks(&blocks, None, HeadingAnchors::None)
             .map(|result| result.unwrap())
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .fold(
@@ -1027,7 +1164,7 @@ mod tests {
             },
         ];
 
-        let (markup, downloadables) = render_blocks(&blocks, None)
+        let (markup, downloadables) = render_blocks(&blocks, None, HeadingAnchors::None)
             .map(|result| result.unwrap())
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .fold(
