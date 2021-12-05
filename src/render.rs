@@ -336,12 +336,9 @@ fn get_downloadable_from_file(file: &File, block_id: &str) -> Result<(String, Pa
     };
 
     let parsed_url = Url::parse(url).context("Failed to parse image URL")?;
-    let ext = parsed_url.path_segments().and_then(|segments| {
-        segments
-            .last()
-            .map(|segment| Path::new(segment))
-            .and_then(|path| path.extension())
-    });
+    let ext = parsed_url
+        .path_segments()
+        .and_then(|segments| segments.last().map(Path::new).and_then(Path::extension));
     // A path is the media directory + UUID + ext
     // i.e media/eb39a20e-1036-4469-b750-a9df8f4f18df.png
     let mut path = PathBuf::with_capacity(
