@@ -300,12 +300,14 @@ fn render_block(
             };
 
             Ok(html! {
-                figure id=(id) class="callout" {
+                aside id=(id) {
                     div {
                         (icon)
                     }
                     div {
-                        (render_rich_text(text))
+                        p {
+                            (render_rich_text(text))
+                        }
                         @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
                             (child?)
                         }
@@ -1171,9 +1173,9 @@ mod tests {
         assert_eq!(
             markup,
             vec![
-                r#"<figure id="b7363fedd7cd4abaa86ff51763f4ce91" class="callout"><div><span role="img" aria-label="warning">⚠️</span></div><div>Some really spooky callout.</div></figure>"#,
-                r#"<figure id="28c719a398454f089e871fe78e50e92b" class="callout"><div><img src="media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"></div><div>Some really spooky callout.</div></figure>"#,
-                r#"<figure id="66ea73701a3b4f4eada53be2f7e6ef73" class="callout"><div><img src="media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"></div><div>Some really spooky callout.</div></figure>"#
+                r#"<aside id="b7363fedd7cd4abaa86ff51763f4ce91"><div><span role="img" aria-label="warning">⚠️</span></div><div><p>Some really spooky callout.</p></div></aside>"#,
+                r#"<aside id="28c719a398454f089e871fe78e50e92b"><div><img src="media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"></div><div><p>Some really spooky callout.</p></div></aside>"#,
+                r#"<aside id="66ea73701a3b4f4eada53be2f7e6ef73"><div><img src="media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"></div><div><p>Some really spooky callout.</p></div></aside>"#
             ]
         );
         assert_eq!(
