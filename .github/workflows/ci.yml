@@ -13,13 +13,18 @@ on:
 jobs:
   clippy:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [1.57, stable]
     steps:
       - name: Checkout
         uses: actions/checkout@v1
 
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: ${{ matrix.rust }}
+          default: true
+          components: clippy
 
       - uses: Swatinem/rust-cache@v1
 
@@ -28,14 +33,17 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        rust: [1.57, stable]
     steps:
       - name: Checkout
         uses: actions/checkout@v1
 
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: ${{ matrix.rust }}
+          default: true
 
       - uses: Swatinem/rust-cache@v1
 
