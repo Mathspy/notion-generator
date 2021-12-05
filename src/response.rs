@@ -131,12 +131,28 @@ mod deserializers {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum RichTextMentionType {
+    User {
+        // TODO: assert!(object == "user");
+        id: String,
+        name: String,
+        avatar_url: String,
+        #[serde(flatten)]
+        ty: UserType,
+    },
     Date {
         #[serde(deserialize_with = "deserializers::time")]
         start: Time,
         #[serde(deserialize_with = "deserializers::optional_time")]
         end: Option<Time>,
     },
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum UserType {
+    Person { email: String },
+    // TODO: Add UserType::Bot
+    // Bot
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq)]
@@ -516,7 +532,7 @@ pub enum EmojiOrFile {
 mod tests {
     use super::{
         Block, BlockType, Emoji, EmojiOrFile, Error, ErrorCode, File, Language, List, RichText,
-        RichTextMentionType, RichTextType, Time,
+        RichTextMentionType, RichTextType, Time, UserType,
     };
     use either::Either;
     use pretty_assertions::assert_eq;
@@ -700,6 +716,54 @@ mod tests {
                             original: "2021-12-06".to_string(),
                             parsed: Either::Left(date!(2021 - 12 - 06))
                         }),
+                    },
+                },
+            }
+        );
+
+        let json = r#"
+            {
+              "type": "mention",
+              "mention": {
+                "type": "user",
+                "user": {
+                  "object": "user",
+                  "id": "8cac60c2-74b9-408c-acbd-08fd7f8b795c",
+                  "name": "Mathy",
+                  "avatar_url": "https://mathspy.me/mathy.png",
+                  "type": "person",
+                  "person": {
+                    "email": "spam@example.com"
+                  }
+                }
+              },
+              "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "@Mathy",
+              "href": null
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "@Mathy".to_string(),
+                href: None,
+                annotations: Default::default(),
+                ty: RichTextType::Mention {
+                    mention: RichTextMentionType::User {
+                        id: "8cac60c2-74b9-408c-acbd-08fd7f8b795c".to_string(),
+                        avatar_url: "https://mathspy.me/mathy.png".to_string(),
+                        name: "Mathy".to_string(),
+                        ty: UserType::Person {
+                            email: "spam@example.com".to_string(),
+                        }
                     },
                 },
             }
