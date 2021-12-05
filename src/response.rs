@@ -139,12 +139,19 @@ pub enum RichTextMentionType {
         #[serde(flatten)]
         ty: UserType,
     },
+    Page {
+        id: String,
+    },
+    Database {
+        id: String,
+    },
     Date {
         #[serde(deserialize_with = "deserializers::time")]
         start: Time,
         #[serde(deserialize_with = "deserializers::optional_time")]
         end: Option<Time>,
     },
+    // TODO(NOTION): link_preview has absolutely no documentation
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -764,6 +771,78 @@ mod tests {
                         ty: UserType::Person {
                             email: "spam@example.com".to_string(),
                         }
+                    },
+                },
+            }
+        );
+
+        let json = r#"
+                        {
+              "type": "mention",
+              "mention": {
+                "type": "page",
+                "page": {
+                  "id": "6e0eb85f-6047-4efb-a130-4f92d2abfa2c"
+                }
+              },
+              "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "watereddown-test",
+              "href": "https://www.notion.so/6e0eb85f60474efba1304f92d2abfa2c"
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "watereddown-test".to_string(),
+                href: Some("https://www.notion.so/6e0eb85f60474efba1304f92d2abfa2c".to_string()),
+                annotations: Default::default(),
+                ty: RichTextType::Mention {
+                    mention: RichTextMentionType::Page {
+                        id: "6e0eb85f-6047-4efb-a130-4f92d2abfa2c".to_string(),
+                    },
+                },
+            }
+        );
+
+        let json = r#"
+            {
+              "type": "mention",
+              "mention": {
+                "type": "database",
+                "database": {
+                  "id": "332b7b05-2ded-4955-bc77-60851242836a"
+                }
+              },
+              "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "Some whacky database",
+              "href": "https://www.notion.so/332b7b052ded4955bc7760851242836a"
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "Some whacky database".to_string(),
+                href: Some("https://www.notion.so/332b7b052ded4955bc7760851242836a".to_string()),
+                annotations: Default::default(),
+                ty: RichTextType::Mention {
+                    mention: RichTextMentionType::Database {
+                        id: "332b7b05-2ded-4955-bc77-60851242836a".to_string(),
                     },
                 },
             }
