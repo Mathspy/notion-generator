@@ -270,28 +270,18 @@ fn render_block(
             children,
             icon,
         } => {
-            match icon {
+            let icon = match icon {
                 // Accessible emojis:
                 // https://adrianroselli.com/2016/12/accessible-emoji-tweaked.html
                 EmojiOrFile::Emoji(emoji) => {
                     let label =
                         emoji::lookup_by_glyph::lookup(&emoji.emoji).map(|emoji| emoji.name);
 
-                    Ok(html! {
-                        figure id=(id) class="callout" {
-                            div {
-                                span role="img" aria-label=[label] {
-                                    (emoji.emoji)
-                                }
-                            }
-                            div {
-                                (render_rich_text(text))
-                                @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
-                                    (child?)
-                                }
-                            }
+                    html! {
+                        span role="img" aria-label=[label] {
+                            (emoji.emoji)
                         }
-                    })
+                    }
                 }
                 EmojiOrFile::File(file) => {
                     eprintln!("WARNING: Using images as callout icon results in images that don't have accessible alt text");
@@ -300,24 +290,30 @@ fn render_block(
                     let src = path.to_str().unwrap();
 
                     let markup = html! {
-                        figure id=(id) class="callout" {
-                            div {
-                                img src=(src);
-                            }
-                            div {
-                                (render_rich_text(text))
-                                @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
-                                    (child?)
-                                }
-                            }
-                        }
+                        img src=(src);
                     };
 
                     downloadables.list.push(Downloadable::new(url, path));
 
-                    Ok(markup)
+                    markup
                 }
-            }
+            };
+
+            Ok(html! {
+                aside id=(id) {
+                    div {
+                        (icon)
+                    }
+                    div {
+                        p {
+                            (render_rich_text(text))
+                        }
+                        @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
+                            (child?)
+                        }
+                    }
+                }
+            })
         }
         _ => Ok(html! {
             h4 id=(id) style="color: red;" class=[class] {
@@ -1177,9 +1173,9 @@ mod tests {
         assert_eq!(
             markup,
             vec![
-                r#"<figure id="b7363fedd7cd4abaa86ff51763f4ce91" class="callout"><div><span role="img" aria-label="warning">⚠️</span></div><div>Some really spooky callout.</div></figure>"#,
-                r#"<figure id="28c719a398454f089e871fe78e50e92b" class="callout"><div><img src="media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"></div><div>Some really spooky callout.</div></figure>"#,
-                r#"<figure id="66ea73701a3b4f4eada53be2f7e6ef73" class="callout"><div><img src="media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"></div><div>Some really spooky callout.</div></figure>"#
+                r#"<aside id="b7363fedd7cd4abaa86ff51763f4ce91"><div><span role="img" aria-label="warning">⚠️</span></div><div><p>Some really spooky callout.</p></div></aside>"#,
+                r#"<aside id="28c719a398454f089e871fe78e50e92b"><div><img src="media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"></div><div><p>Some really spooky callout.</p></div></aside>"#,
+                r#"<aside id="66ea73701a3b4f4eada53be2f7e6ef73"><div><img src="media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"></div><div><p>Some really spooky callout.</p></div></aside>"#
             ]
         );
         assert_eq!(
