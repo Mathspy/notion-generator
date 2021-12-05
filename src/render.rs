@@ -270,28 +270,18 @@ fn render_block(
             children,
             icon,
         } => {
-            match icon {
+            let icon = match icon {
                 // Accessible emojis:
                 // https://adrianroselli.com/2016/12/accessible-emoji-tweaked.html
                 EmojiOrFile::Emoji(emoji) => {
                     let label =
                         emoji::lookup_by_glyph::lookup(&emoji.emoji).map(|emoji| emoji.name);
 
-                    Ok(html! {
-                        figure id=(id) class="callout" {
-                            div {
-                                span role="img" aria-label=[label] {
-                                    (emoji.emoji)
-                                }
-                            }
-                            div {
-                                (render_rich_text(text))
-                                @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
-                                    (child?)
-                                }
-                            }
+                    html! {
+                        span role="img" aria-label=[label] {
+                            (emoji.emoji)
                         }
-                    })
+                    }
                 }
                 EmojiOrFile::File(file) => {
                     eprintln!("WARNING: Using images as callout icon results in images that don't have accessible alt text");
@@ -300,24 +290,28 @@ fn render_block(
                     let src = path.to_str().unwrap();
 
                     let markup = html! {
-                        figure id=(id) class="callout" {
-                            div {
-                                img src=(src);
-                            }
-                            div {
-                                (render_rich_text(text))
-                                @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
-                                    (child?)
-                                }
-                            }
-                        }
+                        img src=(src);
                     };
 
                     downloadables.list.push(Downloadable::new(url, path));
 
-                    Ok(markup)
+                    markup
                 }
-            }
+            };
+
+            Ok(html! {
+                figure id=(id) class="callout" {
+                    div {
+                        (icon)
+                    }
+                    div {
+                        (render_rich_text(text))
+                        @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
+                            (child?)
+                        }
+                    }
+                }
+            })
         }
         _ => Ok(html! {
             h4 id=(id) style="color: red;" class=[class] {
