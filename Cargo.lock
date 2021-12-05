@@ -652,6 +652,7 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "clap",
+ "either",
  "emoji",
  "futures-util",
  "itertools 0.10.1",
@@ -661,6 +662,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "time",
  "tokio",
  "tree-sitter",
  "tree-sitter-highlight",
@@ -683,6 +685,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05499f3756671c15885fee9034446956fff3f243d6077b91e5767df161f766b3"
 dependencies = [
  "hermit-abi",
+ "libc",
+]
+
+[[package]]
+name = "num_threads"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f14f385fd31045b0555b7656038b9609e3b7a67f0c68e3435c0a7361f813573"
+dependencies = [
  "libc",
 ]
 
@@ -1187,6 +1198,22 @@ checksum = "8018d24e04c95ac8790716a5987d0fec4f8b27249ffa0f7d33f1369bdfb88cbd"
 dependencies = [
  "once_cell",
 ]
+
+[[package]]
+name = "time"
+version = "0.3.5"
+source = "git+https://github.com/Mathspy/time?branch=fmt-write#b12596c649ed8cff2db7b006b3056989673fcbe8"
+dependencies = [
+ "itoa",
+ "libc",
+ "num_threads",
+ "time-macros",
+]
+
+[[package]]
+name = "time-macros"
+version = "0.2.3"
+source = "git+https://github.com/Mathspy/time?branch=fmt-write#b12596c649ed8cff2db7b006b3056989673fcbe8"
 
 [[package]]
 name = "tinyvec"
