@@ -1,8 +1,12 @@
 use crate::download::{Downloadable, Downloadables, FILES_DIR};
 use crate::highlight::highlight;
-use crate::response::{Block, BlockType, EmojiOrFile, File, ListType, RichText, RichTextType};
+use crate::response::{
+    Block, BlockType, EmojiOrFile, File, ListType, RichText, RichTextMentionType, RichTextType,
+    Time,
+};
 use crate::HeadingAnchors;
 use anyhow::{Context, Result};
+use either::Either;
 use itertools::Itertools;
 use maud::{html, Escaper, Markup, PreEscaped, Render, DOCTYPE};
 use reqwest::Url;
@@ -423,6 +427,51 @@ impl Render for RichText {
                     eprintln!("{}", error);
                 }
             },
+            RichTextType::Mention { mention } => match mention {
+                RichTextMentionType::Date { start, end } => {
+                    append_html_datetime(buffer, start);
+                    if let Some(end) = end {
+                        buffer.push_str(" to ");
+                        append_html_datetime(buffer, end);
+                    }
+
+                    fn append_html_datetime(buffer: &mut String, time: &Time) {
+                        use time::{format_description::FormatItem, macros::format_description};
+
+                        buffer.push_str("<time datetime=\"");
+
+                        // We rely on Notion's timestamps to be HTML compliant
+                        // They have two timestamp formats, one for dates only: 2021-12-06
+                        // and one for datetime which seems to be Rfc3339 compliant but with
+                        // only 3 subsecond places, which is exactly what we need
+                        buffer.push_str(&time.original);
+                        buffer.push_str("\">");
+
+                        const READABLE_DATE: &[FormatItem<'_>] =
+                            format_description!("[month repr:long] [day], [year]");
+                        const READABLE_DATETIME: &[FormatItem<'_>] = format_description!(
+                            "[month repr:long] [day], [year] [hour repr:12]:[minute] [period case:lower]"
+                        );
+
+                        match time.parsed {
+                            Either::Left(date) => {
+                                date.format_into_fmt_writer(buffer, READABLE_DATE).unwrap()
+                            }
+                            // TODO: Either of the following
+                            // 1) Support letting people customize the timezone for all blocks
+                            // 2) Detect the timezone name and append it
+                            // 3) Ask Notion devs to add timezone name to API response
+                            Either::Right(datetime) => datetime
+                                .to_offset(time::UtcOffset::UTC)
+                                .format_into_fmt_writer(buffer, READABLE_DATETIME)
+                                .unwrap(),
+                        };
+
+                        buffer.push_str("</time>");
+                    }
+                }
+                _ => todo!(),
+            },
         }
     }
 }
@@ -467,13 +516,15 @@ mod tests {
         download::Downloadable,
         response::{
             Annotations, Block, BlockType, Color, Emoji, EmojiOrFile, File, Language, RichText,
-            RichTextLink, RichTextType,
+            RichTextLink, RichTextMentionType, RichTextType, Time,
         },
         HeadingAnchors,
     };
+    use either::Either;
     use maud::Render;
     use pretty_assertions::assert_eq;
     use std::path::PathBuf;
+    use time::macros::{date, datetime};
 
     #[test]
     fn render_unsupported() {
@@ -1261,6 +1312,49 @@ mod tests {
         assert_eq!(
             text.render().into_string(),
             r#"<strong><em><del><span class="underline"><code><a href="https://very.angry/&gt;&lt;">Thanks Notion &lt;:angry_face:&gt;</a></code></span></del></em></strong>"#,
+        );
+
+        let text = RichText {
+            plain_text: "2021-11-07T02:59:00.000-08:00 → ".to_string(),
+            href: None,
+            annotations: Default::default(),
+            ty: RichTextType::Mention {
+                mention: RichTextMentionType::Date {
+                    start: Time {
+                        original: "2021-11-07T02:59:00.000-08:00".to_string(),
+                        parsed: Either::Right(datetime!(2021-11-07 02:59-08:00)),
+                    },
+                    end: None,
+                },
+            },
+        };
+
+        assert_eq!(
+            text.render().into_string(),
+            r#"<time datetime="2021-11-07T02:59:00.000-08:00">November 07, 2021 10:59 am</time>"#
+        );
+
+        let text = RichText {
+            plain_text: "2021-12-05 → 2021-12-06".to_string(),
+            href: None,
+            annotations: Default::default(),
+            ty: RichTextType::Mention {
+                mention: RichTextMentionType::Date {
+                    start: Time {
+                        original: "2021-12-05".to_string(),
+                        parsed: Either::Left(date!(2021 - 12 - 05)),
+                    },
+                    end: Some(Time {
+                        original: "2021-12-06".to_string(),
+                        parsed: Either::Left(date!(2021 - 12 - 06)),
+                    }),
+                },
+            },
+        };
+
+        assert_eq!(
+            text.render().into_string(),
+            r#"<time datetime="2021-12-05">December 05, 2021</time> to <time datetime="2021-12-06">December 06, 2021</time>"#
         );
     }
 

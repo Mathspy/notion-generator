@@ -1,4 +1,6 @@
+use either::Either;
 use serde::{Deserialize, Serialize};
+use time::{Date, OffsetDateTime};
 
 // ------------------ NOTION ERROR OBJECT ------------------
 // As defined in https://developers.notion.com/reference/errors
@@ -60,8 +62,10 @@ pub enum RichTextType {
     Equation {
         expression: String,
     },
-    // TODO: Handle Mention
-    // Mention
+    Mention {
+        #[serde(flatten)]
+        mention: RichTextMentionType,
+    },
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -69,6 +73,93 @@ pub struct RichTextLink {
     // TODO(NOTION): Notion docs say type: "url" should be returned but it's not
     // type: "url",
     pub url: String,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Time {
+    // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
+    // date(time) later
+    pub original: String,
+    pub parsed: Either<Date, OffsetDateTime>,
+}
+
+mod deserializers {
+    use super::Time;
+    use either::Either;
+    use serde::{de::Error, Deserialize, Deserializer};
+    use time::{
+        format_description::{well_known::Rfc3339, FormatItem},
+        macros::format_description,
+        Date, OffsetDateTime,
+    };
+
+    const DATE_FORMAT: &[FormatItem<'_>] = format_description!("[year]-[month]-[day]");
+
+    fn inner<'a, D: Deserializer<'a>>(input: String) -> Result<Time, D::Error> {
+        if let Ok(date) = Date::parse(&input, DATE_FORMAT) {
+            return Ok(Time {
+                original: input,
+                parsed: Either::Left(date),
+            });
+        }
+
+        if let Ok(datetime) = OffsetDateTime::parse(&input, &Rfc3339) {
+            return Ok(Time {
+                original: input,
+                parsed: Either::Right(datetime),
+            });
+        }
+
+        Err(D::Error::custom(
+            "data matched neither a date (YYYY-MM-DD) nor a datetime (RFC3339)",
+        ))
+    }
+
+    pub fn time<'a, D: Deserializer<'a>>(deserializer: D) -> Result<Time, D::Error> {
+        inner::<D>(<_>::deserialize(deserializer)?)
+    }
+
+    pub fn optional_time<'a, D: Deserializer<'a>>(
+        deserializer: D,
+    ) -> Result<Option<Time>, D::Error> {
+        Option::deserialize(deserializer)?
+            .map(inner::<D>)
+            .transpose()
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum RichTextMentionType {
+    User {
+        // TODO: assert!(object == "user");
+        id: String,
+        name: String,
+        avatar_url: String,
+        #[serde(flatten)]
+        ty: UserType,
+    },
+    Page {
+        id: String,
+    },
+    Database {
+        id: String,
+    },
+    Date {
+        #[serde(deserialize_with = "deserializers::time")]
+        start: Time,
+        #[serde(deserialize_with = "deserializers::optional_time")]
+        end: Option<Time>,
+    },
+    // TODO(NOTION): link_preview has absolutely no documentation
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum UserType {
+    Person { email: String },
+    // TODO: Add UserType::Bot
+    // Bot
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq)]
@@ -448,9 +539,11 @@ pub enum EmojiOrFile {
 mod tests {
     use super::{
         Block, BlockType, Emoji, EmojiOrFile, Error, ErrorCode, File, Language, List, RichText,
-        RichTextType,
+        RichTextMentionType, RichTextType, Time, UserType,
     };
+    use either::Either;
     use pretty_assertions::assert_eq;
+    use time::macros::{date, datetime};
 
     #[test]
     fn test_errors() {
@@ -545,6 +638,214 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<ErrorCode>(json).unwrap(),
             ErrorCode::Unknown
+        );
+    }
+
+    #[test]
+    fn test_rich_text_mentions() {
+        let json = r#"
+            {
+              "type": "mention",
+              "mention": {
+                "type": "date",
+                "date": {
+                  "start": "2021-11-07T02:59:00.000-08:00",
+                  "end": null
+                }
+              },
+              "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "2021-11-07T02:59:00.000-08:00 → ",
+              "href": null
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "2021-11-07T02:59:00.000-08:00 → ".to_string(),
+                href: None,
+                annotations: Default::default(),
+                ty: RichTextType::Mention {
+                    mention: RichTextMentionType::Date {
+                        start: Time {
+                            original: "2021-11-07T02:59:00.000-08:00".to_string(),
+                            parsed: Either::Right(datetime!(2021-11-07 10:59 UTC))
+                        },
+                        end: None,
+                    },
+                },
+            }
+        );
+
+        let json = r#"
+            {
+              "type": "mention",
+              "mention": {
+                "type": "date",
+                "date": {
+                  "start": "2021-12-05",
+                  "end": "2021-12-06"
+                }
+              },
+              "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "2021-12-05 → 2021-12-06",
+              "href": null
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "2021-12-05 → 2021-12-06".to_string(),
+                href: None,
+                annotations: Default::default(),
+                ty: RichTextType::Mention {
+                    mention: RichTextMentionType::Date {
+                        start: Time {
+                            original: "2021-12-05".to_string(),
+                            parsed: Either::Left(date!(2021 - 12 - 05))
+                        },
+                        end: Some(Time {
+                            original: "2021-12-06".to_string(),
+                            parsed: Either::Left(date!(2021 - 12 - 06))
+                        }),
+                    },
+                },
+            }
+        );
+
+        let json = r#"
+            {
+              "type": "mention",
+              "mention": {
+                "type": "user",
+                "user": {
+                  "object": "user",
+                  "id": "8cac60c2-74b9-408c-acbd-08fd7f8b795c",
+                  "name": "Mathy",
+                  "avatar_url": "https://mathspy.me/mathy.png",
+                  "type": "person",
+                  "person": {
+                    "email": "spam@example.com"
+                  }
+                }
+              },
+              "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "@Mathy",
+              "href": null
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "@Mathy".to_string(),
+                href: None,
+                annotations: Default::default(),
+                ty: RichTextType::Mention {
+                    mention: RichTextMentionType::User {
+                        id: "8cac60c2-74b9-408c-acbd-08fd7f8b795c".to_string(),
+                        avatar_url: "https://mathspy.me/mathy.png".to_string(),
+                        name: "Mathy".to_string(),
+                        ty: UserType::Person {
+                            email: "spam@example.com".to_string(),
+                        }
+                    },
+                },
+            }
+        );
+
+        let json = r#"
+                        {
+              "type": "mention",
+              "mention": {
+                "type": "page",
+                "page": {
+                  "id": "6e0eb85f-6047-4efb-a130-4f92d2abfa2c"
+                }
+              },
+              "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "watereddown-test",
+              "href": "https://www.notion.so/6e0eb85f60474efba1304f92d2abfa2c"
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "watereddown-test".to_string(),
+                href: Some("https://www.notion.so/6e0eb85f60474efba1304f92d2abfa2c".to_string()),
+                annotations: Default::default(),
+                ty: RichTextType::Mention {
+                    mention: RichTextMentionType::Page {
+                        id: "6e0eb85f-6047-4efb-a130-4f92d2abfa2c".to_string(),
+                    },
+                },
+            }
+        );
+
+        let json = r#"
+            {
+              "type": "mention",
+              "mention": {
+                "type": "database",
+                "database": {
+                  "id": "332b7b05-2ded-4955-bc77-60851242836a"
+                }
+              },
+              "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "Some whacky database",
+              "href": "https://www.notion.so/332b7b052ded4955bc7760851242836a"
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "Some whacky database".to_string(),
+                href: Some("https://www.notion.so/332b7b052ded4955bc7760851242836a".to_string()),
+                annotations: Default::default(),
+                ty: RichTextType::Mention {
+                    mention: RichTextMentionType::Database {
+                        id: "332b7b05-2ded-4955-bc77-60851242836a".to_string(),
+                    },
+                },
+            }
         );
     }
 
