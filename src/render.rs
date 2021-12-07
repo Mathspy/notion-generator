@@ -389,7 +389,16 @@ impl Render for RichText {
                             escaper.write_str(url).expect("unreachable");
                             buffer.push_str(&escaped_link);
                         }
-                        _ => todo!()
+                        RichTextLink::Internal { block, .. } => {
+                            // TODO: only skip for pages in current context
+                            if let Some(block) = block {
+                                buffer.push_str("#");
+                                buffer.push_str(block);
+                            } else {
+                                // TODO: Should be unnecessary once we start rendering pages
+                                buffer.push_str("#");
+                            }
+                        }
                     }
 
                     buffer.push_str("\">");
@@ -1370,6 +1379,42 @@ mod tests {
         assert_eq!(
             text.render().into_string(),
             r#"<strong><em><del><span class="underline"><code><a href="https://very.angry/&gt;&lt;">Thanks Notion &lt;:angry_face:&gt;</a></code></span></del></em></strong>"#,
+        );
+
+        let text = RichText {
+            plain_text: "¹".to_string(),
+            href: Some(
+                "/46f8638c25a84ccd9d926e42bdb5535e#48cb69650f584e60be8159e9f8e07a8a".to_string(),
+            ),
+            annotations: Default::default(),
+            ty: RichTextType::Text {
+                content: "¹".to_string(),
+                link: Some(RichTextLink::Internal {
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    block: Some("48cb69650f584e60be8159e9f8e07a8a".to_string()),
+                }),
+            },
+        };
+        assert_eq!(
+            text.render().into_string(),
+            r##"<a href="#48cb69650f584e60be8159e9f8e07a8a">¹</a>"##,
+        );
+
+        let text = RichText {
+            plain_text: "A less watered down test".to_string(),
+            href: Some("/46f8638c25a84ccd9d926e42bdb5535e".to_string()),
+            annotations: Default::default(),
+            ty: RichTextType::Text {
+                content: "A less watered down test".to_string(),
+                link: Some(RichTextLink::Internal {
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    block: None,
+                }),
+            },
+        };
+        assert_eq!(
+            text.render().into_string(),
+            r##"<a href="#">A less watered down test</a>"##,
         );
 
         let text = RichText {
