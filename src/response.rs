@@ -64,7 +64,7 @@ mod deserializers {
 
     const DATE_FORMAT: &[FormatItem<'_>] = format_description!("[year]-[month]-[day]");
 
-    fn inner<'a, D: Deserializer<'a>>(input: String) -> Result<Time, D::Error> {
+    fn time_inner<'a, D: Deserializer<'a>>(input: String) -> Result<Time, D::Error> {
         if let Ok(date) = Date::parse(&input, DATE_FORMAT) {
             return Ok(Time {
                 original: input,
@@ -85,14 +85,14 @@ mod deserializers {
     }
 
     pub fn time<'a, D: Deserializer<'a>>(deserializer: D) -> Result<Time, D::Error> {
-        inner::<D>(<_>::deserialize(deserializer)?)
+        time_inner::<D>(<_>::deserialize(deserializer)?)
     }
 
     pub fn optional_time<'a, D: Deserializer<'a>>(
         deserializer: D,
     ) -> Result<Option<Time>, D::Error> {
         Option::deserialize(deserializer)?
-            .map(inner::<D>)
+            .map(time_inner::<D>)
             .transpose()
     }
 }
