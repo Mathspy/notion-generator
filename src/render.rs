@@ -1,8 +1,8 @@
 use crate::download::{Downloadable, Downloadables, FILES_DIR};
 use crate::highlight::highlight;
 use crate::response::{
-    Block, BlockType, EmojiOrFile, File, ListType, RichText, RichTextMentionType, RichTextType,
-    Time,
+    Block, BlockType, EmojiOrFile, File, ListType, RichText, RichTextLink, RichTextMentionType,
+    RichTextType, Time,
 };
 use crate::HeadingAnchors;
 use anyhow::{Context, Result};
@@ -382,10 +382,15 @@ impl Render for RichText {
                 if let Some(link) = link {
                     buffer.push_str("<a href=\"");
 
-                    let mut escaped_link = String::with_capacity(link.url.len());
-                    let mut escaper = Escaper::new(&mut escaped_link);
-                    escaper.write_str(&link.url).expect("unreachable");
-                    buffer.push_str(&escaped_link);
+                    match link {
+                        RichTextLink::External { url } => {
+                            let mut escaped_link = String::with_capacity(url.len());
+                            let mut escaper = Escaper::new(&mut escaped_link);
+                            escaper.write_str(url).expect("unreachable");
+                            buffer.push_str(&escaped_link);
+                        }
+                        _ => todo!()
+                    }
 
                     buffer.push_str("\">");
                 }
@@ -1334,7 +1339,7 @@ mod tests {
             },
             ty: RichTextType::Text {
                 content: "boring text".to_string(),
-                link: Some(RichTextLink {
+                link: Some(RichTextLink::External {
                     url: "https://cool.website/".to_string(),
                 }),
             },
@@ -1357,7 +1362,7 @@ mod tests {
             },
             ty: RichTextType::Text {
                 content: "Thanks Notion <:angry_face:>".to_string(),
-                link: Some(RichTextLink {
+                link: Some(RichTextLink::External {
                     url: "https://very.angry/><".to_string(),
                 }),
             },
