@@ -52,37 +52,6 @@ pub struct RichText {
     pub ty: RichTextType,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum RichTextType {
-    Text {
-        content: String,
-        link: Option<RichTextLink>,
-    },
-    Equation {
-        expression: String,
-    },
-    Mention {
-        #[serde(flatten)]
-        mention: RichTextMentionType,
-    },
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct RichTextLink {
-    // TODO(NOTION): Notion docs say type: "url" should be returned but it's not
-    // type: "url",
-    pub url: String,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Time {
-    // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
-    // date(time) later
-    pub original: String,
-    pub parsed: Either<Date, OffsetDateTime>,
-}
-
 mod deserializers {
     use super::Time;
     use either::Either;
@@ -126,6 +95,37 @@ mod deserializers {
             .map(inner::<D>)
             .transpose()
     }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum RichTextType {
+    Text {
+        content: String,
+        link: Option<RichTextLink>,
+    },
+    Equation {
+        expression: String,
+    },
+    Mention {
+        #[serde(flatten)]
+        mention: RichTextMentionType,
+    },
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct RichTextLink {
+    // TODO(NOTION): Notion docs say type: "url" should be returned but it's not
+    // type: "url",
+    pub url: String,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Time {
+    // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
+    // date(time) later
+    pub original: String,
+    pub parsed: Either<Date, OffsetDateTime>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
