@@ -15,6 +15,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub struct HtmlRenderer {
+    pub heading_anchors: HeadingAnchors,
+}
+
 enum BlockCoalition<'a> {
     List(ListType, Vec<&'a Block>),
     Solo(&'a Block),
@@ -56,35 +60,34 @@ impl<'a> std::ops::Add for BlockCoalition<'a> {
     }
 }
 
-pub fn render_page(
-    blocks: Vec<Block>,
-    head: String,
-    heading_anchors: HeadingAnchors,
-) -> Result<(Markup, Downloadables)> {
-    let mut downloadables = Downloadables::new();
-    let rendered_blocks = downloadables.extract(render_blocks(&blocks, None, heading_anchors));
+impl HtmlRenderer {
+    pub fn render_page(&self, blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
+        let mut downloadables = Downloadables::new();
+        let rendered_blocks =
+            downloadables.extract(render_blocks(&blocks, None, self.heading_anchors));
 
-    let markup = html! {
-        (DOCTYPE)
-        html lang="en" {
-            head {
-                meta charset="utf-8";
-                meta name="viewport" content="width=device-width, initial-scale=1";
-                link rel="stylesheet" href="styles/katex.css";
+        let markup = html! {
+            (DOCTYPE)
+            html lang="en" {
+                head {
+                    meta charset="utf-8";
+                    meta name="viewport" content="width=device-width, initial-scale=1";
+                    link rel="stylesheet" href="styles/katex.css";
 
-                (PreEscaped(head))
-            }
-            body {
-                main {
-                    @for block in rendered_blocks {
-                        (block?)
+                    (PreEscaped(head))
+                }
+                body {
+                    main {
+                        @for block in rendered_blocks {
+                            (block?)
+                        }
                     }
                 }
             }
-        }
-    };
+        };
 
-    Ok((markup, downloadables))
+        Ok((markup, downloadables))
+    }
 }
 
 /// Render a group of blocks into HTML
