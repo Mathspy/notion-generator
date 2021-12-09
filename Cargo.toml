@@ -12,7 +12,7 @@ rust-version = "1.57"
 anyhow = { version = "1" }
 async-recursion = { version = "0.3" }
 time = { git = "https://github.com/Mathspy/time", branch = "fmt-write", features = ["formatting", "parsing", "macros"] }
-clap = { version = "3.0.0-beta.5" }
+clap = { version = "3.0.0-rc.1", features = ["derive"] }
 either = { version = "1" }
 emoji = { version = "0.2" }
 futures-util = { version = "0.3" }
@@ -29,6 +29,3 @@ tree-sitter-rust = { version = "0.20" }
 
 [dev-dependencies]
 pretty_assertions = { version = "1" }
-
-[patch.crates-io]
-tree-sitter-rust = { git = "https://github.com/Luni-4/tree-sitter-rust", branch = "update-0.20" }
