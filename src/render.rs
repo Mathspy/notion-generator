@@ -15,6 +15,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub struct HtmlRenderer {
+    pub heading_anchors: HeadingAnchors,
+}
+
 enum BlockCoalition<'a> {
     List(ListType, Vec<&'a Block>),
     Solo(&'a Block),
@@ -56,277 +60,271 @@ impl<'a> std::ops::Add for BlockCoalition<'a> {
     }
 }
 
-pub fn render_page(
-    blocks: Vec<Block>,
-    head: String,
-    heading_anchors: HeadingAnchors,
-) -> Result<(Markup, Downloadables)> {
-    let mut downloadables = Downloadables::new();
-    let rendered_blocks = downloadables.extract(render_blocks(&blocks, None, heading_anchors));
+impl HtmlRenderer {
+    pub fn render_page(&self, blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
+        let mut downloadables = Downloadables::new();
+        let rendered_blocks = downloadables.extract(self.render_blocks(&blocks, None));
 
-    let markup = html! {
-        (DOCTYPE)
-        html lang="en" {
-            head {
-                meta charset="utf-8";
-                meta name="viewport" content="width=device-width, initial-scale=1";
-                link rel="stylesheet" href="styles/katex.css";
+        let markup = html! {
+            (DOCTYPE)
+            html lang="en" {
+                head {
+                    meta charset="utf-8";
+                    meta name="viewport" content="width=device-width, initial-scale=1";
+                    link rel="stylesheet" href="styles/katex.css";
 
-                (PreEscaped(head))
-            }
-            body {
-                main {
-                    @for block in rendered_blocks {
-                        (block?)
+                    (PreEscaped(head))
+                }
+                body {
+                    main {
+                        @for block in rendered_blocks {
+                            (block?)
+                        }
                     }
                 }
             }
-        }
-    };
+        };
 
-    Ok((markup, downloadables))
-}
+        Ok((markup, downloadables))
+    }
 
-/// Render a group of blocks into HTML
-fn render_blocks<'a>(
-    blocks: &'a [Block],
-    class: Option<&'a str>,
-    heading_anchors: HeadingAnchors,
-) -> impl Iterator<Item = Result<(Markup, Downloadables)>> + 'a {
-    blocks
-        .iter()
-        .map(BlockCoalition::Solo)
-        .coalesce(|a, b| a + b)
-        .map(move |coalition| match coalition {
-            BlockCoalition::List(ty, list) => render_list(ty, list, class, heading_anchors),
-            BlockCoalition::Solo(block) => render_block(block, class, heading_anchors),
-        })
-}
-
-fn render_list(
-    ty: ListType,
-    list: Vec<&Block>,
-    class: Option<&str>,
-    heading_anchors: HeadingAnchors,
-) -> Result<(Markup, Downloadables)> {
-    let mut downloadables = Downloadables::new();
-
-    let list = list.into_iter().map(|item| {
-        if let (Some(text), Some(children)) = (item.get_text(), item.get_children()) {
-            Ok::<_, anyhow::Error>(html! {
-                li id=(item.id.replace("-", "")) {
-                    (render_rich_text(text))
-                    @for block in downloadables.extract(render_blocks(children, class, heading_anchors)) {
-                        (block?)
-                    }
-                }
+    /// Render a group of blocks into HTML
+    fn render_blocks<'a>(
+        &'a self,
+        blocks: &'a [Block],
+        class: Option<&'a str>,
+    ) -> impl Iterator<Item = Result<(Markup, Downloadables)>> + 'a {
+        blocks
+            .iter()
+            .map(BlockCoalition::Solo)
+            .coalesce(|a, b| a + b)
+            .map(move |coalition| match coalition {
+                BlockCoalition::List(ty, list) => self.render_list(ty, list, class),
+                BlockCoalition::Solo(block) => self.render_block(block, class),
             })
-        } else {
-            unreachable!()
-        }
-    });
+    }
 
-    let result = match ty {
-        ListType::Bulleted => Ok(html! {
-            ul class=[class] {
-                @for item in list {
-                    (item?)
-                }
-            }
-        }),
-        ListType::Numbered => Ok(html! {
-            ol class=[class] {
-                @for item in list {
-                    (item?)
-                }
-            }
-        }),
-        _ => todo!(),
-    };
+    fn render_list(
+        &self,
+        ty: ListType,
+        list: Vec<&Block>,
+        class: Option<&str>,
+    ) -> Result<(Markup, Downloadables)> {
+        let mut downloadables = Downloadables::new();
 
-    result.map(|markup| (markup, downloadables))
-}
-
-fn render_block(
-    block: &Block,
-    class: Option<&str>,
-    heading_anchors: HeadingAnchors,
-) -> Result<(Markup, Downloadables)> {
-    let mut downloadables = Downloadables::new();
-
-    let id = block.id.replace("-", "");
-
-    let result = match &block.ty {
-        BlockType::HeadingOne { text } => Ok(html! {
-            h1 id=(id) class=[class] {
-                (render_heading_link_icon(heading_anchors, &id))
-                (render_rich_text(text))
-            }
-        }),
-        BlockType::HeadingTwo { text } => Ok(html! {
-            h2 id=(id) class=[class] {
-                (render_heading_link_icon(heading_anchors, &id))
-                (render_rich_text(text))
-            }
-        }),
-        BlockType::HeadingThree { text } => Ok(html! {
-            h3 id=(id) class=[class] {
-                (render_heading_link_icon(heading_anchors, &id))
-                (render_rich_text(text))
-            }
-        }),
-        BlockType::Divider {} => Ok(html! {
-            hr id=(id);
-        }),
-        BlockType::Paragraph { text, children } => {
-            if children.is_empty() {
-                Ok(html! {
-                    p id=(id) class=[class] {
+        let list = list.into_iter().map(|item| {
+            if let (Some(text), Some(children)) = (item.get_text(), item.get_children()) {
+                Ok::<_, anyhow::Error>(html! {
+                    li id=(item.id.replace("-", "")) {
                         (render_rich_text(text))
+                        @for block in downloadables.extract(self.render_blocks(children, class)) {
+                            (block?)
+                        }
                     }
                 })
             } else {
-                eprintln!("WARNING: Rendering a paragraph with children doesn't make sense as far as I am aware at least for the English language.\nThe HTML spec is strictly against it (rendering a <p> inside of a <p> is forbidden) but it's part of Notion's spec so we support it but emit this warning.\n\nRendering a paragraph with children doesn't give any indication to accessibility tools that anything about the children of this paragraph are special so it causes accessibility information loss.\n\nIf you have an actual use case for paragraphs inside of paragraphs please open an issue, I would love to be convinced of reasons to remove this warning or of good HTML ways to render paragraphs inside of paragraphs!");
+                unreachable!()
+            }
+        });
 
-                Ok(html! {
-                    div id=(id) class=[class] {
-                        p {
+        let result = match ty {
+            ListType::Bulleted => Ok(html! {
+                ul class=[class] {
+                    @for item in list {
+                        (item?)
+                    }
+                }
+            }),
+            ListType::Numbered => Ok(html! {
+                ol class=[class] {
+                    @for item in list {
+                        (item?)
+                    }
+                }
+            }),
+            _ => todo!(),
+        };
+
+        result.map(|markup| (markup, downloadables))
+    }
+
+    fn render_block(&self, block: &Block, class: Option<&str>) -> Result<(Markup, Downloadables)> {
+        let mut downloadables = Downloadables::new();
+
+        let id = block.id.replace("-", "");
+
+        let result = match &block.ty {
+            BlockType::HeadingOne { text } => Ok(html! {
+                h1 id=(id) class=[class] {
+                    (render_heading_link_icon(self.heading_anchors, &id))
+                    (render_rich_text(text))
+                }
+            }),
+            BlockType::HeadingTwo { text } => Ok(html! {
+                h2 id=(id) class=[class] {
+                    (render_heading_link_icon(self.heading_anchors, &id))
+                    (render_rich_text(text))
+                }
+            }),
+            BlockType::HeadingThree { text } => Ok(html! {
+                h3 id=(id) class=[class] {
+                    (render_heading_link_icon(self.heading_anchors, &id))
+                    (render_rich_text(text))
+                }
+            }),
+            BlockType::Divider {} => Ok(html! {
+                hr id=(id);
+            }),
+            BlockType::Paragraph { text, children } => {
+                if children.is_empty() {
+                    Ok(html! {
+                        p id=(id) class=[class] {
                             (render_rich_text(text))
                         }
-                        @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
+                    })
+                } else {
+                    eprintln!("WARNING: Rendering a paragraph with children doesn't make sense as far as I am aware at least for the English language.\nThe HTML spec is strictly against it (rendering a <p> inside of a <p> is forbidden) but it's part of Notion's spec so we support it but emit this warning.\n\nRendering a paragraph with children doesn't give any indication to accessibility tools that anything about the children of this paragraph are special so it causes accessibility information loss.\n\nIf you have an actual use case for paragraphs inside of paragraphs please open an issue, I would love to be convinced of reasons to remove this warning or of good HTML ways to render paragraphs inside of paragraphs!");
+
+                    Ok(html! {
+                        div id=(id) class=[class] {
+                            p {
+                                (render_rich_text(text))
+                            }
+                            @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
+                                (child?)
+                            }
+                        }
+                    })
+                }
+            }
+            BlockType::Quote { text, children } => Ok(html! {
+                blockquote id=(id) {
+                    (render_rich_text(text))
+                    @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
+                        (child?)
+                    }
+                }
+            }),
+            BlockType::Code { language, text } => highlight(
+                language,
+                &text
+                    .get(0)
+                    .context("Code block's RichText is empty")?
+                    .plain_text,
+                &id,
+            ),
+            // The list items should only be reachable below if a block wasn't coalesced, thus it's
+            // a list made of one item so we can safely render a list of one item
+            BlockType::BulletedListItem { text, children } => Ok(html! {
+                ul {
+                    li id=(id) {
+                        (render_rich_text(text))
+                        @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                             (child?)
                         }
                     }
-                })
-            }
-        }
-        BlockType::Quote { text, children } => Ok(html! {
-            blockquote id=(id) {
-                (render_rich_text(text))
-                @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
-                    (child?)
                 }
-            }
-        }),
-        BlockType::Code { language, text } => highlight(
-            language,
-            &text
-                .get(0)
-                .context("Code block's RichText is empty")?
-                .plain_text,
-            &id,
-        ),
-        // The list items should only be reachable below if a block wasn't coalesced, thus it's
-        // a list made of one item so we can safely render a list of one item
-        BlockType::BulletedListItem { text, children } => Ok(html! {
-            ul {
-                li id=(id) {
-                    (render_rich_text(text))
-                    @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
-                        (child?)
-                    }
-                }
-            }
-        }),
-        BlockType::NumberedListItem { text, children } => Ok(html! {
-            ol {
-                li id=(id) {
-                    (render_rich_text(text))
-                    @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
-                        (child?)
-                    }
-                }
-            }
-        }),
-        BlockType::Image { image, caption } => {
-            let (url, path) = get_downloadable_from_file(image, &block.id)?;
-
-            // We need to create the return value before pushing the path
-            // so that we don't have to clone it
-            let src = path.to_str().unwrap();
-            let markup = if let Some(caption) =
-                caption.get(0).map(|rich_text| &rich_text.plain_text)
-            {
-                // Lack of alt text can be explained here
-                // https://stackoverflow.com/a/58468470/3018913
-                html! {
-                    figure id=(id) {
-                        img src=(src);
-                        figcaption {
-                            (caption)
+            }),
+            BlockType::NumberedListItem { text, children } => Ok(html! {
+                ol {
+                    li id=(id) {
+                        (render_rich_text(text))
+                        @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
+                            (child?)
                         }
                     }
                 }
-            } else {
-                eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
+            }),
+            BlockType::Image { image, caption } => {
+                let (url, path) = get_downloadable_from_file(image, &block.id)?;
 
-                html! {
-                    img id=(id) src=(src);
-                }
-            };
-
-            downloadables.list.push(Downloadable::new(url, path));
-
-            Ok(markup)
-        }
-        BlockType::Callout {
-            text,
-            children,
-            icon,
-        } => {
-            let icon = match icon {
-                // Accessible emojis:
-                // https://adrianroselli.com/2016/12/accessible-emoji-tweaked.html
-                EmojiOrFile::Emoji(emoji) => {
-                    let label =
-                        emoji::lookup_by_glyph::lookup(&emoji.emoji).map(|emoji| emoji.name);
+                // We need to create the return value before pushing the path
+                // so that we don't have to clone it
+                let src = path.to_str().unwrap();
+                let markup = if let Some(caption) =
+                    caption.get(0).map(|rich_text| &rich_text.plain_text)
+                {
+                    // Lack of alt text can be explained here
+                    // https://stackoverflow.com/a/58468470/3018913
+                    html! {
+                        figure id=(id) {
+                            img src=(src);
+                            figcaption {
+                                (caption)
+                            }
+                        }
+                    }
+                } else {
+                    eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
 
                     html! {
-                        span role="img" aria-label=[label] {
-                            (emoji.emoji)
-                        }
+                        img id=(id) src=(src);
                     }
-                }
-                EmojiOrFile::File(file) => {
-                    eprintln!("WARNING: Using images as callout icon results in images that don't have accessible alt text");
+                };
 
-                    let (url, path) = get_downloadable_from_file(file, &block.id)?;
-                    let src = path.to_str().unwrap();
+                downloadables.list.push(Downloadable::new(url, path));
 
-                    let markup = html! {
-                        img src=(src);
-                    };
-
-                    downloadables.list.push(Downloadable::new(url, path));
-
-                    markup
-                }
-            };
-
-            Ok(html! {
-                aside id=(id) {
-                    div {
-                        (icon)
-                    }
-                    div {
-                        p {
-                            (render_rich_text(text))
-                        }
-                        @for child in downloadables.extract(render_blocks(children, Some("indent"), heading_anchors)) {
-                            (child?)
-                        }
-                    }
-                }
-            })
-        }
-        _ => Ok(html! {
-            h4 id=(id) style="color: red;" class=[class] {
-                "UNSUPPORTED FEATURE: " (block.name())
+                Ok(markup)
             }
-        }),
-    };
+            BlockType::Callout {
+                text,
+                children,
+                icon,
+            } => {
+                let icon = match icon {
+                    // Accessible emojis:
+                    // https://adrianroselli.com/2016/12/accessible-emoji-tweaked.html
+                    EmojiOrFile::Emoji(emoji) => {
+                        let label =
+                            emoji::lookup_by_glyph::lookup(&emoji.emoji).map(|emoji| emoji.name);
 
-    result.map(|markup| (markup, downloadables))
+                        html! {
+                            span role="img" aria-label=[label] {
+                                (emoji.emoji)
+                            }
+                        }
+                    }
+                    EmojiOrFile::File(file) => {
+                        eprintln!("WARNING: Using images as callout icon results in images that don't have accessible alt text");
+
+                        let (url, path) = get_downloadable_from_file(file, &block.id)?;
+                        let src = path.to_str().unwrap();
+
+                        let markup = html! {
+                            img src=(src);
+                        };
+
+                        downloadables.list.push(Downloadable::new(url, path));
+
+                        markup
+                    }
+                };
+
+                Ok(html! {
+                    aside id=(id) {
+                        div {
+                            (icon)
+                        }
+                        div {
+                            p {
+                                (render_rich_text(text))
+                            }
+                            @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
+                                (child?)
+                            }
+                        }
+                    }
+                })
+            }
+            _ => Ok(html! {
+                h4 id=(id) style="color: red;" class=[class] {
+                    "UNSUPPORTED FEATURE: " (block.name())
+                }
+            }),
+        };
+
+        result.map(|markup| (markup, downloadables))
+    }
 }
 
 fn get_downloadable_from_file(file: &File, block_id: &str) -> Result<(String, PathBuf)> {
@@ -511,7 +509,7 @@ fn render_link_icon() -> Markup {
 
 #[cfg(test)]
 mod tests {
-    use super::{render_block, render_blocks};
+    use super::HtmlRenderer;
     use crate::{
         download::Downloadable,
         response::{
@@ -528,6 +526,10 @@ mod tests {
 
     #[test]
     fn render_unsupported() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+        };
+
         let block = Block {
             object: "block".to_string(),
             id: "eb39a20e-1036-4469-b750-a9df8f4f18df".to_string(),
@@ -538,7 +540,8 @@ mod tests {
             ty: BlockType::TableOfContents {},
         };
 
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -550,6 +553,10 @@ mod tests {
 
     #[test]
     fn render_headings_without_anchors() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+        };
+
         let block = Block {
             object: "block".to_string(),
             id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".to_string(),
@@ -569,7 +576,8 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -597,7 +605,8 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -625,7 +634,8 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -637,6 +647,10 @@ mod tests {
 
     #[test]
     fn render_headings_with_icon_anchors() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::Icon,
+        };
+
         let block = Block {
             object: "block".to_string(),
             id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".to_string(),
@@ -656,7 +670,8 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::Icon)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -684,7 +699,8 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::Icon)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -712,7 +728,8 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::Icon)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -724,6 +741,10 @@ mod tests {
 
     #[test]
     fn render_divider() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+        };
+
         let block = Block {
             object: "block".to_string(),
             id: "5e845049-255f-4232-96fd-6f20449be0bc".to_string(),
@@ -734,7 +755,8 @@ mod tests {
             ty: BlockType::Divider {},
         };
 
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(markup, r#"<hr id="5e845049255f423296fd6f20449be0bc">"#);
@@ -743,6 +765,10 @@ mod tests {
 
     #[test]
     fn render_paragraphs() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+        };
+
         let block = Block {
             object: "block".to_string(),
             id: "64740ca6-3a06-4694-8845-401688334ef5".to_string(),
@@ -763,7 +789,8 @@ mod tests {
                 children: vec![],
             },
         };
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -841,7 +868,8 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -853,6 +881,10 @@ mod tests {
 
     #[test]
     fn render_quote() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+        };
+
         let block = Block {
             object: "block".to_string(),
             id: "191b3d44-a37f-40c4-bb4f-3477359022fd".to_string(),
@@ -876,7 +908,8 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -889,6 +922,10 @@ mod tests {
 
     #[test]
     fn render_code() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+        };
+
         let block = Block {
             object: "block".to_string(),
             id: "bf0128fd-3b85-4d85-aada-e500dcbcda35".to_string(),
@@ -912,7 +949,8 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -943,6 +981,10 @@ mod tests {
 
     #[test]
     fn render_lists() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+        };
+
         let block = Block {
             object: "block".to_string(),
             id: "844b3fdf-5688-4f6c-91e8-97b4f0e436cd".to_string(),
@@ -1045,7 +1087,8 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = render_block(&block, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_block(&block, None)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -1057,6 +1100,10 @@ mod tests {
 
     #[test]
     fn render_images() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+        };
+
         let blocks = [
                     Block {
                         object: "block".to_string(),
@@ -1099,7 +1146,8 @@ mod tests {
                     }
                 ];
 
-        let (markup, downloadables) = render_blocks(&blocks, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_blocks(&blocks, None)
             .map(|result| result.unwrap())
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .fold(
@@ -1135,6 +1183,10 @@ mod tests {
 
     #[test]
     fn render_callouts() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+        };
+
         let blocks = [
             Block {
                 object: "block".to_string(),
@@ -1208,7 +1260,8 @@ mod tests {
             },
         ];
 
-        let (markup, downloadables) = render_blocks(&blocks, None, HeadingAnchors::None)
+        let (markup, downloadables) = renderer
+            .render_blocks(&blocks, None)
             .map(|result| result.unwrap())
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .fold(
