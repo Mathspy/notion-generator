@@ -29,6 +29,3 @@ tree-sitter-rust = { version = "0.20" }
 
 [dev-dependencies]
 pretty_assertions = { version = "1" }
-
-[patch.crates-io]
-tree-sitter-rust = { git = "https://github.com/Luni-4/tree-sitter-rust", branch = "update-0.20" }
