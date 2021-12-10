@@ -125,7 +125,7 @@ impl HtmlRenderer {
             if let (Some(text), Some(children)) = (item.get_text(), item.get_children()) {
                 Ok::<_, anyhow::Error>(html! {
                     li id=(item.id.replace("-", "")) {
-                        (render_rich_text(text))
+                        (self.render_rich_text(text))
                         @for block in downloadables.extract(self.render_blocks(children, class)) {
                             (block?)
                         }
@@ -166,19 +166,19 @@ impl HtmlRenderer {
             BlockType::HeadingOne { text } => Ok(html! {
                 h1 id=(id) class=[class] {
                     (render_heading_link_icon(self.heading_anchors, &id))
-                    (render_rich_text(text))
+                    (self.render_rich_text(text))
                 }
             }),
             BlockType::HeadingTwo { text } => Ok(html! {
                 h2 id=(id) class=[class] {
                     (render_heading_link_icon(self.heading_anchors, &id))
-                    (render_rich_text(text))
+                    (self.render_rich_text(text))
                 }
             }),
             BlockType::HeadingThree { text } => Ok(html! {
                 h3 id=(id) class=[class] {
                     (render_heading_link_icon(self.heading_anchors, &id))
-                    (render_rich_text(text))
+                    (self.render_rich_text(text))
                 }
             }),
             BlockType::Divider {} => Ok(html! {
@@ -188,7 +188,7 @@ impl HtmlRenderer {
                 if children.is_empty() {
                     Ok(html! {
                         p id=(id) class=[class] {
-                            (render_rich_text(text))
+                            (self.render_rich_text(text))
                         }
                     })
                 } else {
@@ -197,7 +197,7 @@ impl HtmlRenderer {
                     Ok(html! {
                         div id=(id) class=[class] {
                             p {
-                                (render_rich_text(text))
+                                (self.render_rich_text(text))
                             }
                             @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                                 (child?)
@@ -208,7 +208,7 @@ impl HtmlRenderer {
             }
             BlockType::Quote { text, children } => Ok(html! {
                 blockquote id=(id) {
-                    (render_rich_text(text))
+                    (self.render_rich_text(text))
                     @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                         (child?)
                     }
@@ -227,7 +227,7 @@ impl HtmlRenderer {
             BlockType::BulletedListItem { text, children } => Ok(html! {
                 ul {
                     li id=(id) {
-                        (render_rich_text(text))
+                        (self.render_rich_text(text))
                         @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                             (child?)
                         }
@@ -237,7 +237,7 @@ impl HtmlRenderer {
             BlockType::NumberedListItem { text, children } => Ok(html! {
                 ol {
                     li id=(id) {
-                        (render_rich_text(text))
+                        (self.render_rich_text(text))
                         @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                             (child?)
                         }
@@ -316,7 +316,7 @@ impl HtmlRenderer {
                         }
                         div {
                             p {
-                                (render_rich_text(text))
+                                (self.render_rich_text(text))
                             }
                             @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                                 (child?)
@@ -333,6 +333,14 @@ impl HtmlRenderer {
         };
 
         result.map(|markup| (markup, downloadables))
+    }
+
+    fn render_rich_text(&self, rich_text: &[RichText]) -> Markup {
+        html! {
+            @for segment in rich_text {
+                (*segment)
+            }
+        }
     }
 }
 
@@ -358,14 +366,6 @@ fn get_downloadable_from_file(file: &File, block_id: &str) -> Result<(String, Pa
     }
 
     Ok((url.clone(), path))
-}
-
-fn render_rich_text(rich_text: &[RichText]) -> Markup {
-    html! {
-        @for segment in rich_text {
-            (*segment)
-        }
-    }
 }
 
 impl Render for RichText {
