@@ -1,8 +1,8 @@
 use crate::download::{Downloadable, Downloadables, FILES_DIR};
 use crate::highlight::highlight;
 use crate::response::{
-    Block, BlockType, EmojiOrFile, File, ListType, RichText, RichTextMentionType, RichTextType,
-    Time,
+    Block, BlockType, EmojiOrFile, File, ListType, RichText, RichTextLink, RichTextMentionType,
+    RichTextType, Time,
 };
 use crate::HeadingAnchors;
 use anyhow::{Context, Result};
@@ -11,12 +11,21 @@ use itertools::Itertools;
 use maud::{html, Escaper, Markup, PreEscaped, Render, DOCTYPE};
 use reqwest::Url;
 use std::{
+    collections::HashSet,
     fmt::Write,
     path::{Path, PathBuf},
 };
 
 pub struct HtmlRenderer {
     pub heading_anchors: HeadingAnchors,
+    /// A list of pages that will be rendered together, used to figure out whether to use fragment
+    /// part of links alone (#block_id) or to use the full canonical link (/page_id#block_id)
+    ///
+    /// If you're rendering each page independently this should be a set with only the page id
+    ///
+    /// If you're rendering multiple pages together into the same HTML page this should be a set
+    /// of all those pages ids
+    pub current_pages: HashSet<String>,
 }
 
 enum BlockCoalition<'a> {
@@ -116,7 +125,7 @@ impl HtmlRenderer {
             if let (Some(text), Some(children)) = (item.get_text(), item.get_children()) {
                 Ok::<_, anyhow::Error>(html! {
                     li id=(item.id.replace("-", "")) {
-                        (render_rich_text(text))
+                        (self.render_rich_text(text))
                         @for block in downloadables.extract(self.render_blocks(children, class)) {
                             (block?)
                         }
@@ -157,19 +166,19 @@ impl HtmlRenderer {
             BlockType::HeadingOne { text } => Ok(html! {
                 h1 id=(id) class=[class] {
                     (render_heading_link_icon(self.heading_anchors, &id))
-                    (render_rich_text(text))
+                    (self.render_rich_text(text))
                 }
             }),
             BlockType::HeadingTwo { text } => Ok(html! {
                 h2 id=(id) class=[class] {
                     (render_heading_link_icon(self.heading_anchors, &id))
-                    (render_rich_text(text))
+                    (self.render_rich_text(text))
                 }
             }),
             BlockType::HeadingThree { text } => Ok(html! {
                 h3 id=(id) class=[class] {
                     (render_heading_link_icon(self.heading_anchors, &id))
-                    (render_rich_text(text))
+                    (self.render_rich_text(text))
                 }
             }),
             BlockType::Divider {} => Ok(html! {
@@ -179,7 +188,7 @@ impl HtmlRenderer {
                 if children.is_empty() {
                     Ok(html! {
                         p id=(id) class=[class] {
-                            (render_rich_text(text))
+                            (self.render_rich_text(text))
                         }
                     })
                 } else {
@@ -188,7 +197,7 @@ impl HtmlRenderer {
                     Ok(html! {
                         div id=(id) class=[class] {
                             p {
-                                (render_rich_text(text))
+                                (self.render_rich_text(text))
                             }
                             @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                                 (child?)
@@ -199,7 +208,7 @@ impl HtmlRenderer {
             }
             BlockType::Quote { text, children } => Ok(html! {
                 blockquote id=(id) {
-                    (render_rich_text(text))
+                    (self.render_rich_text(text))
                     @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                         (child?)
                     }
@@ -218,7 +227,7 @@ impl HtmlRenderer {
             BlockType::BulletedListItem { text, children } => Ok(html! {
                 ul {
                     li id=(id) {
-                        (render_rich_text(text))
+                        (self.render_rich_text(text))
                         @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                             (child?)
                         }
@@ -228,7 +237,7 @@ impl HtmlRenderer {
             BlockType::NumberedListItem { text, children } => Ok(html! {
                 ol {
                     li id=(id) {
-                        (render_rich_text(text))
+                        (self.render_rich_text(text))
                         @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                             (child?)
                         }
@@ -307,7 +316,7 @@ impl HtmlRenderer {
                         }
                         div {
                             p {
-                                (render_rich_text(text))
+                                (self.render_rich_text(text))
                             }
                             @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                                 (child?)
@@ -324,6 +333,14 @@ impl HtmlRenderer {
         };
 
         result.map(|markup| (markup, downloadables))
+    }
+
+    fn render_rich_text(&self, rich_text: &[RichText]) -> Markup {
+        html! {
+            @for segment in rich_text {
+                (RichTextRenderer::new(segment, &self.current_pages))
+            }
+        }
     }
 }
 
@@ -351,41 +368,73 @@ fn get_downloadable_from_file(file: &File, block_id: &str) -> Result<(String, Pa
     Ok((url.clone(), path))
 }
 
-fn render_rich_text(rich_text: &[RichText]) -> Markup {
-    html! {
-        @for segment in rich_text {
-            (*segment)
+struct RichTextRenderer<'a> {
+    rich_text: &'a RichText,
+    current_pages: &'a HashSet<String>,
+}
+
+impl<'a> RichTextRenderer<'a> {
+    fn new(rich_text: &'a RichText, current_pages: &'a HashSet<String>) -> Self {
+        Self {
+            rich_text,
+            current_pages,
         }
     }
 }
 
-impl Render for RichText {
+impl<'a> Render for RichTextRenderer<'a> {
     fn render_to(&self, buffer: &mut String) {
-        match &self.ty {
+        match &self.rich_text.ty {
             RichTextType::Text { content, link } => {
                 // TODO: Handle colors
-                if self.annotations.bold {
+                if self.rich_text.annotations.bold {
                     buffer.push_str("<strong>");
                 }
-                if self.annotations.italic {
+                if self.rich_text.annotations.italic {
                     buffer.push_str("<em>");
                 }
-                if self.annotations.strikethrough {
+                if self.rich_text.annotations.strikethrough {
                     buffer.push_str("<del>");
                 }
-                if self.annotations.underline {
+                if self.rich_text.annotations.underline {
                     buffer.push_str(r#"<span class="underline">"#);
                 }
-                if self.annotations.code {
+                if self.rich_text.annotations.code {
                     buffer.push_str("<code>");
                 }
                 if let Some(link) = link {
                     buffer.push_str("<a href=\"");
 
-                    let mut escaped_link = String::with_capacity(link.url.len());
-                    let mut escaper = Escaper::new(&mut escaped_link);
-                    escaper.write_str(&link.url).expect("unreachable");
-                    buffer.push_str(&escaped_link);
+                    match link {
+                        RichTextLink::External { url } => {
+                            let mut escaped_link = String::with_capacity(url.len());
+                            let mut escaper = Escaper::new(&mut escaped_link);
+                            escaper.write_str(url).expect("unreachable");
+                            buffer.push_str(&escaped_link);
+                        }
+                        RichTextLink::Internal { page, block } => {
+                            match (self.current_pages.contains(page), block) {
+                                (true, Some(block)) => {
+                                    buffer.push('#');
+                                    buffer.push_str(block);
+                                }
+                                (true, None) => {
+                                    buffer.push('#');
+                                    buffer.push_str(page);
+                                }
+                                (false, Some(block)) => {
+                                    buffer.push('/');
+                                    buffer.push_str(page);
+                                    buffer.push('#');
+                                    buffer.push_str(block);
+                                }
+                                (false, None) => {
+                                    buffer.push('/');
+                                    buffer.push_str(page);
+                                }
+                            }
+                        }
+                    }
 
                     buffer.push_str("\">");
                 }
@@ -398,19 +447,19 @@ impl Render for RichText {
                 if link.is_some() {
                     buffer.push_str("</a>");
                 }
-                if self.annotations.code {
+                if self.rich_text.annotations.code {
                     buffer.push_str("</code>");
                 }
-                if self.annotations.underline {
+                if self.rich_text.annotations.underline {
                     buffer.push_str("</span>");
                 }
-                if self.annotations.strikethrough {
+                if self.rich_text.annotations.strikethrough {
                     buffer.push_str("</del>");
                 }
-                if self.annotations.italic {
+                if self.rich_text.annotations.italic {
                     buffer.push_str("</em>");
                 }
-                if self.annotations.bold {
+                if self.rich_text.annotations.bold {
                     buffer.push_str("</strong>");
                 }
             }
@@ -509,7 +558,7 @@ fn render_link_icon() -> Markup {
 
 #[cfg(test)]
 mod tests {
-    use super::HtmlRenderer;
+    use super::{HtmlRenderer, RichTextRenderer};
     use crate::{
         download::Downloadable,
         response::{
@@ -521,13 +570,14 @@ mod tests {
     use either::Either;
     use maud::Render;
     use pretty_assertions::assert_eq;
-    use std::path::PathBuf;
+    use std::{collections::HashSet, path::PathBuf};
     use time::macros::{date, datetime};
 
     #[test]
     fn render_unsupported() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -555,6 +605,7 @@ mod tests {
     fn render_headings_without_anchors() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -649,6 +700,7 @@ mod tests {
     fn render_headings_with_icon_anchors() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::Icon,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -743,6 +795,7 @@ mod tests {
     fn render_divider() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -767,6 +820,7 @@ mod tests {
     fn render_paragraphs() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -883,6 +937,7 @@ mod tests {
     fn render_quote() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -924,6 +979,7 @@ mod tests {
     fn render_code() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -983,6 +1039,7 @@ mod tests {
     fn render_lists() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -1102,6 +1159,7 @@ mod tests {
     fn render_images() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let blocks = [
@@ -1185,6 +1243,7 @@ mod tests {
     fn render_callouts() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let blocks = [
@@ -1308,7 +1367,12 @@ mod tests {
                 link: None,
             },
         };
-        assert_eq!(text.render().into_string(), "I love you!");
+        assert_eq!(
+            RichTextRenderer::new(&text, &HashSet::new())
+                .render()
+                .into_string(),
+            "I love you!"
+        );
 
         let text = RichText {
             href: None,
@@ -1319,7 +1383,12 @@ mod tests {
                 link: None,
             },
         };
-        assert_eq!(text.render().into_string(), "a &gt; 5 but &lt; 3 how?");
+        assert_eq!(
+            RichTextRenderer::new(&text, &HashSet::new())
+                .render()
+                .into_string(),
+            "a &gt; 5 but &lt; 3 how?"
+        );
 
         let text = RichText {
             href: None,
@@ -1334,13 +1403,15 @@ mod tests {
             },
             ty: RichTextType::Text {
                 content: "boring text".to_string(),
-                link: Some(RichTextLink {
+                link: Some(RichTextLink::External {
                     url: "https://cool.website/".to_string(),
                 }),
             },
         };
         assert_eq!(
-            text.render().into_string(),
+            RichTextRenderer::new(&text, &HashSet::new())
+                .render()
+                .into_string(),
             r#"<span class="underline"><a href="https://cool.website/">boring text</a></span>"#
         );
 
@@ -1357,14 +1428,102 @@ mod tests {
             },
             ty: RichTextType::Text {
                 content: "Thanks Notion <:angry_face:>".to_string(),
-                link: Some(RichTextLink {
+                link: Some(RichTextLink::External {
                     url: "https://very.angry/><".to_string(),
                 }),
             },
         };
         assert_eq!(
-            text.render().into_string(),
+            RichTextRenderer::new(&text, &HashSet::new())
+                .render()
+                .into_string(),
             r#"<strong><em><del><span class="underline"><code><a href="https://very.angry/&gt;&lt;">Thanks Notion &lt;:angry_face:&gt;</a></code></span></del></em></strong>"#,
+        );
+
+        let text = RichText {
+            plain_text: "¹".to_string(),
+            href: Some(
+                "/46f8638c25a84ccd9d926e42bdb5535e#48cb69650f584e60be8159e9f8e07a8a".to_string(),
+            ),
+            annotations: Default::default(),
+            ty: RichTextType::Text {
+                content: "¹".to_string(),
+                link: Some(RichTextLink::Internal {
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    block: Some("48cb69650f584e60be8159e9f8e07a8a".to_string()),
+                }),
+            },
+        };
+        assert_eq!(
+            RichTextRenderer::new(
+                &text,
+                &HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()])
+            )
+            .render()
+            .into_string(),
+            r##"<a href="#48cb69650f584e60be8159e9f8e07a8a">¹</a>"##,
+        );
+
+        let text = RichText {
+            plain_text: "¹".to_string(),
+            href: Some(
+                "/46f8638c25a84ccd9d926e42bdb5535e#48cb69650f584e60be8159e9f8e07a8a".to_string(),
+            ),
+            annotations: Default::default(),
+            ty: RichTextType::Text {
+                content: "¹".to_string(),
+                link: Some(RichTextLink::Internal {
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    block: None,
+                }),
+            },
+        };
+        assert_eq!(
+            RichTextRenderer::new(
+                &text,
+                &HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()])
+            )
+            .render()
+            .into_string(),
+            r##"<a href="#46f8638c25a84ccd9d926e42bdb5535e">¹</a>"##,
+        );
+
+        let text = RichText {
+            plain_text: "A less watered down test".to_string(),
+            href: Some("/46f8638c25a84ccd9d926e42bdb5535e".to_string()),
+            annotations: Default::default(),
+            ty: RichTextType::Text {
+                content: "A less watered down test".to_string(),
+                link: Some(RichTextLink::Internal {
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    block: None,
+                }),
+            },
+        };
+        assert_eq!(
+            RichTextRenderer::new(&text, &HashSet::new())
+                .render()
+                .into_string(),
+            r##"<a href="/46f8638c25a84ccd9d926e42bdb5535e">A less watered down test</a>"##,
+        );
+
+        let text = RichText {
+            plain_text: "A less watered down test".to_string(),
+            href: Some("/46f8638c25a84ccd9d926e42bdb5535e".to_string()),
+            annotations: Default::default(),
+            ty: RichTextType::Text {
+                content: "A less watered down test".to_string(),
+                link: Some(RichTextLink::Internal {
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    block: Some("48cb69650f584e60be8159e9f8e07a8a".to_string()),
+                }),
+            },
+        };
+        assert_eq!(
+            RichTextRenderer::new(&text, &HashSet::new())
+                .render()
+                .into_string(),
+            r##"<a href="/46f8638c25a84ccd9d926e42bdb5535e#48cb69650f584e60be8159e9f8e07a8a">A less watered down test</a>"##,
         );
 
         let text = RichText {
@@ -1383,7 +1542,9 @@ mod tests {
         };
 
         assert_eq!(
-            text.render().into_string(),
+            RichTextRenderer::new(&text, &HashSet::new())
+                .render()
+                .into_string(),
             r#"<time datetime="2021-11-07T02:59:00.000-08:00">November 07, 2021 10:59 am</time>"#
         );
 
@@ -1406,7 +1567,9 @@ mod tests {
         };
 
         assert_eq!(
-            text.render().into_string(),
+            RichTextRenderer::new(&text, &HashSet::new())
+                .render()
+                .into_string(),
             r#"<time datetime="2021-12-05">December 05, 2021</time> to <time datetime="2021-12-06">December 06, 2021</time>"#
         );
     }
@@ -1422,7 +1585,9 @@ mod tests {
             },
         };
         assert_eq!(
-            text.render().into_string(),
+            RichTextRenderer::new(&text, &HashSet::new())
+                .render()
+                .into_string(),
             r#"<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>f</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mi>y</mi></mrow><annotation encoding="application/x-tex">f(x)=y</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">y</span></span></span></span>"#
         )
     }

@@ -10,7 +10,7 @@ use futures_util::stream::{self, FuturesOrdered, StreamExt};
 use render::HtmlRenderer;
 use reqwest::Client;
 use response::{Block, Error, List};
-use std::{fmt, ops::Not, path::PathBuf, str::FromStr};
+use std::{collections::HashSet, fmt, ops::Not, path::PathBuf, str::FromStr};
 
 #[async_recursion]
 async fn get_block_children(
@@ -134,6 +134,10 @@ struct Opts {
     /// Whether to include a link icon next to headings or not
     #[clap(long, default_value = "none")]
     heading_anchors: HeadingAnchors,
+    /// In case of rendering multiple notion pages into the same HTML page, this should
+    /// contain the id of those other pages. Comma delimited list
+    #[clap(long, require_delimiter = true, use_delimiter = true)]
+    current_pages: Vec<String>,
 }
 
 #[tokio::main]
@@ -158,8 +162,17 @@ async fn main() -> Result<()> {
             .context("Failed to read head partial")?,
     )
     .context("Failed to parse head partial as utf8")?;
+    let mut current_pages = HashSet::new();
+    current_pages.extend(
+        std::iter::once(opts.document_id.replace("-", "")).chain(
+            opts.current_pages
+                .into_iter()
+                .map(|page_id| page_id.replace("-", "")),
+        ),
+    );
     let renderer = HtmlRenderer {
         heading_anchors: opts.heading_anchors,
+        current_pages,
     };
     let (markup, downloadables) = renderer
         .render_page(blocks, head)

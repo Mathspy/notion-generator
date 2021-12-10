@@ -52,41 +52,14 @@ pub struct RichText {
     pub ty: RichTextType,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum RichTextType {
-    Text {
-        content: String,
-        link: Option<RichTextLink>,
-    },
-    Equation {
-        expression: String,
-    },
-    Mention {
-        #[serde(flatten)]
-        mention: RichTextMentionType,
-    },
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct RichTextLink {
-    // TODO(NOTION): Notion docs say type: "url" should be returned but it's not
-    // type: "url",
-    pub url: String,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Time {
-    // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
-    // date(time) later
-    pub original: String,
-    pub parsed: Either<Date, OffsetDateTime>,
-}
-
 mod deserializers {
-    use super::Time;
+    use super::{RichTextLink, Time};
     use either::Either;
-    use serde::{de::Error, Deserialize, Deserializer};
+    use serde::{
+        de::{Error, Unexpected},
+        Deserialize, Deserializer,
+    };
+    use std::borrow::Cow;
     use time::{
         format_description::{well_known::Rfc3339, FormatItem},
         macros::format_description,
@@ -95,7 +68,7 @@ mod deserializers {
 
     const DATE_FORMAT: &[FormatItem<'_>] = format_description!("[year]-[month]-[day]");
 
-    fn inner<'a, D: Deserializer<'a>>(input: String) -> Result<Time, D::Error> {
+    fn time_inner<'a, D: Deserializer<'a>>(input: String) -> Result<Time, D::Error> {
         if let Ok(date) = Date::parse(&input, DATE_FORMAT) {
             return Ok(Time {
                 original: input,
@@ -116,16 +89,91 @@ mod deserializers {
     }
 
     pub fn time<'a, D: Deserializer<'a>>(deserializer: D) -> Result<Time, D::Error> {
-        inner::<D>(<_>::deserialize(deserializer)?)
+        time_inner::<D>(<_>::deserialize(deserializer)?)
     }
 
     pub fn optional_time<'a, D: Deserializer<'a>>(
         deserializer: D,
     ) -> Result<Option<Time>, D::Error> {
         Option::deserialize(deserializer)?
-            .map(inner::<D>)
+            .map(time_inner::<D>)
             .transpose()
     }
+
+    pub fn optional_rich_text_link<'a, D: Deserializer<'a>>(
+        deserializer: D,
+    ) -> Result<Option<RichTextLink>, D::Error> {
+        // We use Cow below because MOST of the time the string we are passed can be reused
+        // and we only have to allocate once at the end when returning RichTextLink BUT sometimes
+        // we will be passed strings that has escape sequences AKA "\"love\"" and to be able to
+        // return `"love"` without the backslashes Serde needs to allocate! Thus Cow to the rescue
+        #[derive(Deserialize)]
+        struct Link<'a> {
+            // TODO(NOTION): Notion docs say type: "url" should be returned but it's not
+            // type: "url",
+            url: Cow<'a, str>,
+        }
+
+        let link = Option::<Link>::deserialize(deserializer)?;
+        let link = match link {
+            Some(link) => link,
+            None => return Ok(None),
+        };
+
+        if link.url.starts_with('/') {
+            let mut parts = link.url[1..].split('#');
+
+            let page = match parts.next() {
+                Some(page) => page,
+                None => {
+                    return Err(D::Error::invalid_value(
+                        Unexpected::Str(&link.url),
+                        &"a valid internal Notion url",
+                    ))
+                }
+            };
+
+            Ok(Some(RichTextLink::Internal {
+                page: page.to_string(),
+                block: parts.next().map(str::to_string),
+            }))
+        } else {
+            Ok(Some(RichTextLink::External {
+                url: link.url.to_string(),
+            }))
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum RichTextType {
+    Text {
+        content: String,
+        #[serde(deserialize_with = "deserializers::optional_rich_text_link")]
+        link: Option<RichTextLink>,
+    },
+    Equation {
+        expression: String,
+    },
+    Mention {
+        #[serde(flatten)]
+        mention: RichTextMentionType,
+    },
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub enum RichTextLink {
+    Internal { page: String, block: Option<String> },
+    External { url: String },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Time {
+    // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
+    // date(time) later
+    pub original: String,
+    pub parsed: Either<Date, OffsetDateTime>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -537,6 +585,8 @@ pub enum EmojiOrFile {
 
 #[cfg(test)]
 mod tests {
+    use crate::response::RichTextLink;
+
     use super::{
         Block, BlockType, Emoji, EmojiOrFile, Error, ErrorCode, File, Language, List, RichText,
         RichTextMentionType, RichTextType, Time, UserType,
@@ -638,6 +688,162 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<ErrorCode>(json).unwrap(),
             ErrorCode::Unknown
+        );
+    }
+
+    #[test]
+    fn test_rich_text_links() {
+        let json = r#"
+            {
+              "type": "text",
+              "text": {
+                "content": "A cool website",
+                "link": {
+                  "url": "https://mathspy.me/"
+                }
+              },
+              "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "A cool website",
+              "href": "https://mathspy.me/"
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "A cool website".to_string(),
+                href: Some("https://mathspy.me/".to_string()),
+                annotations: Default::default(),
+                ty: RichTextType::Text {
+                    content: "A cool website".to_string(),
+                    link: Some(RichTextLink::External {
+                        url: "https://mathspy.me/".to_string()
+                    })
+                },
+            }
+        );
+
+        let json = r#"
+            {
+            "type": "text",
+            "text": {
+                "content": "Test characters that need escaping",
+                "link": {
+                "url": "http://mathspy.me/\"hello\"/"
+                }
+            },
+            "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+            },
+            "plain_text": "Test characters that need escaping",
+            "href": "http://mathspy.me/\"hello\"/"
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "Test characters that need escaping".to_string(),
+                href: Some("http://mathspy.me/\"hello\"/".to_string()),
+                annotations: Default::default(),
+                ty: RichTextType::Text {
+                    content: "Test characters that need escaping".to_string(),
+                    link: Some(RichTextLink::External {
+                        url: "http://mathspy.me/\"hello\"/".to_string()
+                    })
+                },
+            }
+        );
+
+        let json = r#"
+            {
+              "type": "text",
+              "text": {
+                "content": "¹",
+                "link": {
+                  "url": "/46f8638c25a84ccd9d926e42bdb5535e#48cb69650f584e60be8159e9f8e07a8a"
+                }
+              },
+              "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "¹",
+              "href": "/46f8638c25a84ccd9d926e42bdb5535e#48cb69650f584e60be8159e9f8e07a8a"
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "¹".to_string(),
+                href: Some(
+                    "/46f8638c25a84ccd9d926e42bdb5535e#48cb69650f584e60be8159e9f8e07a8a"
+                        .to_string()
+                ),
+                annotations: Default::default(),
+                ty: RichTextType::Text {
+                    content: "¹".to_string(),
+                    link: Some(RichTextLink::Internal {
+                        page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                        block: Some("48cb69650f584e60be8159e9f8e07a8a".to_string()),
+                    })
+                },
+            }
+        );
+
+        let json = r#"
+            {
+              "type": "text",
+              "text": {
+                "content": "A less watered down test",
+                "link": {
+                  "url": "/46f8638c25a84ccd9d926e42bdb5535e"
+                }
+              },
+              "annotations": {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "A less watered down test",
+              "href": "/46f8638c25a84ccd9d926e42bdb5535e"
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "A less watered down test".to_string(),
+                href: Some("/46f8638c25a84ccd9d926e42bdb5535e".to_string()),
+                annotations: Default::default(),
+                ty: RichTextType::Text {
+                    content: "A less watered down test".to_string(),
+                    link: Some(RichTextLink::Internal {
+                        page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                        block: None,
+                    })
+                },
+            }
         );
     }
 
