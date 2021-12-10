@@ -11,12 +11,21 @@ use itertools::Itertools;
 use maud::{html, Escaper, Markup, PreEscaped, Render, DOCTYPE};
 use reqwest::Url;
 use std::{
+    collections::HashSet,
     fmt::Write,
     path::{Path, PathBuf},
 };
 
 pub struct HtmlRenderer {
     pub heading_anchors: HeadingAnchors,
+    /// A list of pages that will be rendered together, used to figure out whether to use fragment
+    /// part of links alone (#block_id) or to use the full canonical link (/page_id#block_id)
+    ///
+    /// If you're rendering each page independently this should be a set with only the page id
+    ///
+    /// If you're rendering multiple pages together into the same HTML page this should be a set
+    /// of all those pages ids
+    pub current_pages: HashSet<String>,
 }
 
 enum BlockCoalition<'a> {
@@ -392,11 +401,11 @@ impl Render for RichText {
                         RichTextLink::Internal { block, .. } => {
                             // TODO: only skip for pages in current context
                             if let Some(block) = block {
-                                buffer.push_str("#");
+                                buffer.push('#');
                                 buffer.push_str(block);
                             } else {
                                 // TODO: Should be unnecessary once we start rendering pages
-                                buffer.push_str("#");
+                                buffer.push('#');
                             }
                         }
                     }
@@ -535,13 +544,14 @@ mod tests {
     use either::Either;
     use maud::Render;
     use pretty_assertions::assert_eq;
-    use std::path::PathBuf;
+    use std::{collections::HashSet, path::PathBuf};
     use time::macros::{date, datetime};
 
     #[test]
     fn render_unsupported() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -569,6 +579,7 @@ mod tests {
     fn render_headings_without_anchors() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -663,6 +674,7 @@ mod tests {
     fn render_headings_with_icon_anchors() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::Icon,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -757,6 +769,7 @@ mod tests {
     fn render_divider() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -781,6 +794,7 @@ mod tests {
     fn render_paragraphs() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -897,6 +911,7 @@ mod tests {
     fn render_quote() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -938,6 +953,7 @@ mod tests {
     fn render_code() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -997,6 +1013,7 @@ mod tests {
     fn render_lists() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let block = Block {
@@ -1116,6 +1133,7 @@ mod tests {
     fn render_images() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let blocks = [
@@ -1199,6 +1217,7 @@ mod tests {
     fn render_callouts() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
         };
 
         let blocks = [
