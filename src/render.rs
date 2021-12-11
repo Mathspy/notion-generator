@@ -428,22 +428,17 @@ impl<'a> Render for RichTextRenderer<'a> {
                                     buffer.push('#');
                                     buffer.push_str(page);
                                 }
-                                (false, Some(block)) => {
+                                (false, block) => {
                                     if let Some(path) = self.link_map.get(page) {
                                         buffer.push_str(path);
                                     } else {
                                         buffer.push('/');
                                         buffer.push_str(page);
                                     }
-                                    buffer.push('#');
-                                    buffer.push_str(block);
-                                }
-                                (false, None) => {
-                                    if let Some(path) = self.link_map.get(page) {
-                                        buffer.push_str(path);
-                                    } else {
-                                        buffer.push('/');
-                                        buffer.push_str(page);
+
+                                    if let Some(block) = block {
+                                        buffer.push('#');
+                                        buffer.push_str(block);
                                     }
                                 }
                             }
