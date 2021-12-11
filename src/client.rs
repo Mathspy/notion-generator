@@ -1,7 +1,7 @@
 use crate::response::{Block, Error, List, NotionId};
 use anyhow::{bail, Context, Result};
 use async_recursion::async_recursion;
-use futures_util::stream::{FuturesOrdered, StreamExt};
+use futures_util::stream::{FuturesOrdered, TryStreamExt};
 use reqwest::Client;
 use std::ops::Not;
 
@@ -23,7 +23,7 @@ impl NotionClient {
     }
 
     #[async_recursion]
-    pub async fn get_block_children(&self, id: NotionId) -> Result<Vec<Result<Block>>> {
+    pub async fn get_block_children(&self, id: NotionId) -> Result<Vec<Block>> {
         let mut cursor = None;
         let mut output = FuturesOrdered::new();
 
@@ -73,12 +73,7 @@ impl NotionClient {
 
                     let children = self.get_block_children(block.id).await?;
 
-                    Ok(block.replace_children(
-                        children
-                            .into_iter()
-                            .collect::<Result<Vec<_>>>()
-                            .context("Failed to get sub-block's children")?,
-                    ))
+                    Ok(block.replace_children(children))
                 })
                 .collect::<Vec<_>>();
 
@@ -87,7 +82,7 @@ impl NotionClient {
             if list.has_more {
                 cursor = list.next_cursor;
             } else {
-                return Ok(output.collect().await);
+                return output.try_collect().await;
             }
         }
     }

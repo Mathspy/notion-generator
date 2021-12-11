@@ -102,9 +102,7 @@ async fn main() -> Result<()> {
     let blocks = client
         .get_block_children(document_id)
         .await
-        .context("Failed to get block children")?
-        .into_iter()
-        .collect::<Result<Vec<_>>>()?;
+        .context("Failed to get block children")?;
 
     let head = String::from_utf8(
         tokio::fs::read(opts.head)
