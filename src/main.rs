@@ -1,17 +1,13 @@
-mod download;
-mod highlight;
-mod options;
-mod render;
-mod response;
-
 use anyhow::{bail, Context, Result};
 use async_recursion::async_recursion;
 use clap::Parser;
 use futures_util::stream::{self, FuturesOrdered, StreamExt};
-use options::HeadingAnchors;
-use render::HtmlRenderer;
+use notion_generator::{
+    options::HeadingAnchors,
+    render::HtmlRenderer,
+    response::{Block, Error, List, NotionId},
+};
 use reqwest::Client;
-use response::{Block, Error, List, NotionId};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
