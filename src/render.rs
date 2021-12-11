@@ -1,10 +1,10 @@
 use crate::download::{Downloadable, Downloadables, FILES_DIR};
 use crate::highlight::highlight;
+use crate::options::HeadingAnchors;
 use crate::response::{
     Block, BlockType, EmojiOrFile, File, ListType, NotionId, RichText, RichTextLink,
     RichTextMentionType, RichTextType, Time,
 };
-use crate::HeadingAnchors;
 use anyhow::{Context, Result};
 use either::Either;
 use itertools::Itertools;
@@ -572,11 +572,11 @@ mod tests {
     use super::{HtmlRenderer, RichTextRenderer};
     use crate::{
         download::Downloadable,
+        options::HeadingAnchors,
         response::{
             Annotations, Block, BlockType, Color, Emoji, EmojiOrFile, File, Language, RichText,
             RichTextLink, RichTextMentionType, RichTextType, Time,
         },
-        HeadingAnchors,
     };
     use either::Either;
     use maud::Render;
