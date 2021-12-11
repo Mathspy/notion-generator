@@ -10,7 +10,13 @@ use futures_util::stream::{self, FuturesOrdered, StreamExt};
 use render::HtmlRenderer;
 use reqwest::Client;
 use response::{Block, Error, List};
-use std::{collections::HashSet, fmt, ops::Not, path::PathBuf, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    ops::Not,
+    path::PathBuf,
+    str::FromStr,
+};
 
 #[async_recursion]
 async fn get_block_children(
@@ -116,6 +122,56 @@ impl FromStr for HeadingAnchors {
     }
 }
 
+struct LinkMap(HashMap<String, String>);
+
+#[derive(Debug)]
+enum LinkMapError {
+    MissingPageId,
+    InvalidPageId,
+    MissingPath,
+}
+
+impl fmt::Display for LinkMapError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LinkMapError::MissingPageId => f.write_str("Missing page id"),
+            LinkMapError::InvalidPageId => f.write_str("Invalid page id, must be a UUIDv4"),
+            LinkMapError::MissingPath => f.write_str("Missing path"),
+        }
+    }
+}
+
+impl std::error::Error for LinkMapError {}
+
+impl FromStr for LinkMap {
+    type Err = LinkMapError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.split(',')
+            .map(|entry| {
+                let mut entry = entry.trim().split(':');
+                let page_id = match entry.next() {
+                    Some(page_id) => page_id,
+                    None => return Err(LinkMapError::MissingPageId),
+                };
+
+                let page_id = page_id.replace("-", "");
+                if page_id.len() != 32 {
+                    return Err(LinkMapError::InvalidPageId);
+                }
+
+                let path = match entry.next() {
+                    Some(path) => path,
+                    None => return Err(LinkMapError::MissingPath),
+                };
+
+                Ok((page_id, path.to_string()))
+            })
+            .collect::<Result<HashMap<_, _>, _>>()
+            .map(LinkMap)
+    }
+}
+
 /// Generate an HTML page from a Notion document
 #[derive(Parser)]
 struct Opts {
@@ -138,6 +194,11 @@ struct Opts {
     /// contain the id of those other pages. Comma delimited list
     #[clap(long, require_delimiter = true, use_delimiter = true)]
     current_pages: Vec<String>,
+    /// A map from page ids to URL paths, used to replace page ids in links with the URL path
+    /// Example usage:
+    /// 46ce88507ab748c78f92024dc1190ca7:/path/to/page,9b4d1ba2963e4dd885fc9c3c4284fc74:/path/to/other/page
+    #[clap(long)]
+    link_map: LinkMap,
 }
 
 #[tokio::main]
