@@ -10,6 +10,7 @@ use either::Either;
 use itertools::Itertools;
 use maud::{html, Escaper, Markup, PreEscaped, Render, DOCTYPE};
 use reqwest::Url;
+use std::collections::HashMap;
 use std::{
     collections::HashSet,
     fmt::Write,
@@ -26,6 +27,9 @@ pub struct HtmlRenderer {
     /// If you're rendering multiple pages together into the same HTML page this should be a set
     /// of all those pages ids
     pub current_pages: HashSet<String>,
+    /// A map from page ids to URL paths to replace page ids in links with the corresponding URL
+    /// path
+    pub link_map: HashMap<String, String>,
 }
 
 enum BlockCoalition<'a> {
@@ -338,7 +342,7 @@ impl HtmlRenderer {
     fn render_rich_text(&self, rich_text: &[RichText]) -> Markup {
         html! {
             @for segment in rich_text {
-                (RichTextRenderer::new(segment, &self.current_pages))
+                (RichTextRenderer::new(segment, self))
             }
         }
     }
@@ -371,13 +375,15 @@ fn get_downloadable_from_file(file: &File, block_id: &str) -> Result<(String, Pa
 struct RichTextRenderer<'a> {
     rich_text: &'a RichText,
     current_pages: &'a HashSet<String>,
+    link_map: &'a HashMap<String, String>,
 }
 
 impl<'a> RichTextRenderer<'a> {
-    fn new(rich_text: &'a RichText, current_pages: &'a HashSet<String>) -> Self {
+    fn new(rich_text: &'a RichText, renderer: &'a HtmlRenderer) -> Self {
         Self {
             rich_text,
-            current_pages,
+            current_pages: &renderer.current_pages,
+            link_map: &renderer.link_map,
         }
     }
 }
@@ -422,15 +428,18 @@ impl<'a> Render for RichTextRenderer<'a> {
                                     buffer.push('#');
                                     buffer.push_str(page);
                                 }
-                                (false, Some(block)) => {
-                                    buffer.push('/');
-                                    buffer.push_str(page);
-                                    buffer.push('#');
-                                    buffer.push_str(block);
-                                }
-                                (false, None) => {
-                                    buffer.push('/');
-                                    buffer.push_str(page);
+                                (false, block) => {
+                                    if let Some(path) = self.link_map.get(page) {
+                                        buffer.push_str(path);
+                                    } else {
+                                        buffer.push('/');
+                                        buffer.push_str(page);
+                                    }
+
+                                    if let Some(block) = block {
+                                        buffer.push('#');
+                                        buffer.push_str(block);
+                                    }
                                 }
                             }
                         }
@@ -570,7 +579,10 @@ mod tests {
     use either::Either;
     use maud::Render;
     use pretty_assertions::assert_eq;
-    use std::{collections::HashSet, path::PathBuf};
+    use std::{
+        collections::{HashMap, HashSet},
+        path::PathBuf,
+    };
     use time::macros::{date, datetime};
 
     #[test]
@@ -578,6 +590,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
         };
 
         let block = Block {
@@ -606,6 +619,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
         };
 
         let block = Block {
@@ -701,6 +715,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::Icon,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
         };
 
         let block = Block {
@@ -796,6 +811,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
         };
 
         let block = Block {
@@ -821,6 +837,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
         };
 
         let block = Block {
@@ -938,6 +955,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
         };
 
         let block = Block {
@@ -980,6 +998,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
         };
 
         let block = Block {
@@ -1040,6 +1059,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
         };
 
         let block = Block {
@@ -1160,6 +1180,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
         };
 
         let blocks = [
@@ -1244,6 +1265,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
         };
 
         let blocks = [
@@ -1358,6 +1380,24 @@ mod tests {
 
     #[test]
     fn display_rich_text_type_text() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::new(),
+            link_map: HashMap::new(),
+        };
+        let renderer_with_link_map = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::new(),
+            link_map: HashMap::from([(
+                "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                "/path/to/page".to_string(),
+            )]),
+        };
+        let renderer_with_pages = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
+        };
         let text = RichText {
             href: None,
             plain_text: "I love you!".to_string(),
@@ -1368,7 +1408,7 @@ mod tests {
             },
         };
         assert_eq!(
-            RichTextRenderer::new(&text, &HashSet::new())
+            RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
             "I love you!"
@@ -1384,7 +1424,7 @@ mod tests {
             },
         };
         assert_eq!(
-            RichTextRenderer::new(&text, &HashSet::new())
+            RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
             "a &gt; 5 but &lt; 3 how?"
@@ -1409,7 +1449,7 @@ mod tests {
             },
         };
         assert_eq!(
-            RichTextRenderer::new(&text, &HashSet::new())
+            RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
             r#"<span class="underline"><a href="https://cool.website/">boring text</a></span>"#
@@ -1434,7 +1474,7 @@ mod tests {
             },
         };
         assert_eq!(
-            RichTextRenderer::new(&text, &HashSet::new())
+            RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
             r#"<strong><em><del><span class="underline"><code><a href="https://very.angry/&gt;&lt;">Thanks Notion &lt;:angry_face:&gt;</a></code></span></del></em></strong>"#,
@@ -1455,12 +1495,9 @@ mod tests {
             },
         };
         assert_eq!(
-            RichTextRenderer::new(
-                &text,
-                &HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()])
-            )
-            .render()
-            .into_string(),
+            RichTextRenderer::new(&text, &renderer_with_pages)
+                .render()
+                .into_string(),
             r##"<a href="#48cb69650f584e60be8159e9f8e07a8a">¹</a>"##,
         );
 
@@ -1479,12 +1516,9 @@ mod tests {
             },
         };
         assert_eq!(
-            RichTextRenderer::new(
-                &text,
-                &HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()])
-            )
-            .render()
-            .into_string(),
+            RichTextRenderer::new(&text, &renderer_with_pages)
+                .render()
+                .into_string(),
             r##"<a href="#46f8638c25a84ccd9d926e42bdb5535e">¹</a>"##,
         );
 
@@ -1501,7 +1535,7 @@ mod tests {
             },
         };
         assert_eq!(
-            RichTextRenderer::new(&text, &HashSet::new())
+            RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
             r##"<a href="/46f8638c25a84ccd9d926e42bdb5535e">A less watered down test</a>"##,
@@ -1520,10 +1554,48 @@ mod tests {
             },
         };
         assert_eq!(
-            RichTextRenderer::new(&text, &HashSet::new())
+            RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
             r##"<a href="/46f8638c25a84ccd9d926e42bdb5535e#48cb69650f584e60be8159e9f8e07a8a">A less watered down test</a>"##,
+        );
+
+        let text = RichText {
+            plain_text: "A less watered down test".to_string(),
+            href: Some("/46f8638c25a84ccd9d926e42bdb5535e".to_string()),
+            annotations: Default::default(),
+            ty: RichTextType::Text {
+                content: "A less watered down test".to_string(),
+                link: Some(RichTextLink::Internal {
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    block: None,
+                }),
+            },
+        };
+        assert_eq!(
+            RichTextRenderer::new(&text, &renderer_with_link_map)
+                .render()
+                .into_string(),
+            r##"<a href="/path/to/page">A less watered down test</a>"##,
+        );
+
+        let text = RichText {
+            plain_text: "A less watered down test".to_string(),
+            href: Some("/46f8638c25a84ccd9d926e42bdb5535e".to_string()),
+            annotations: Default::default(),
+            ty: RichTextType::Text {
+                content: "A less watered down test".to_string(),
+                link: Some(RichTextLink::Internal {
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    block: Some("48cb69650f584e60be8159e9f8e07a8a".to_string()),
+                }),
+            },
+        };
+        assert_eq!(
+            RichTextRenderer::new(&text, &renderer_with_link_map)
+                .render()
+                .into_string(),
+            r##"<a href="/path/to/page#48cb69650f584e60be8159e9f8e07a8a">A less watered down test</a>"##,
         );
 
         let text = RichText {
@@ -1542,7 +1614,7 @@ mod tests {
         };
 
         assert_eq!(
-            RichTextRenderer::new(&text, &HashSet::new())
+            RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
             r#"<time datetime="2021-11-07T02:59:00.000-08:00">November 07, 2021 10:59 am</time>"#
@@ -1567,7 +1639,7 @@ mod tests {
         };
 
         assert_eq!(
-            RichTextRenderer::new(&text, &HashSet::new())
+            RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
             r#"<time datetime="2021-12-05">December 05, 2021</time> to <time datetime="2021-12-06">December 06, 2021</time>"#
@@ -1576,6 +1648,11 @@ mod tests {
 
     #[test]
     fn display_rich_text_type_equation() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            link_map: HashMap::new(),
+        };
         let text = RichText {
             href: None,
             plain_text: "f(x)=y".to_string(),
@@ -1585,7 +1662,7 @@ mod tests {
             },
         };
         assert_eq!(
-            RichTextRenderer::new(&text, &HashSet::new())
+            RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
             r#"<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>f</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mi>y</mi></mrow><annotation encoding="application/x-tex">f(x)=y</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">y</span></span></span></span>"#
