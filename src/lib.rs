@@ -1,3 +1,4 @@
+pub mod client;
 mod download;
 mod highlight;
 pub mod options;
