@@ -4,8 +4,8 @@ use clap::Parser;
 use futures_util::stream::{self, FuturesOrdered, StreamExt};
 use notion_generator::{
     options::HeadingAnchors,
-    render::HtmlRenderer,
     response::{Block, Error, List, NotionId},
+    HtmlRenderer,
 };
 use reqwest::Client;
 use std::{
