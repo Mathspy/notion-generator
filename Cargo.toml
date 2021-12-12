@@ -12,7 +12,6 @@ rust-version = "1.57"
 anyhow = { version = "1" }
 async-recursion = { version = "0.3" }
 time = { git = "https://github.com/Mathspy/time", branch = "fmt-write", features = ["formatting", "parsing", "macros"] }
-clap = { version = "3.0.0-rc.1", features = ["derive"] }
 either = { version = "1" }
 emoji = { version = "0.2" }
 futures-util = { version = "0.3" }
@@ -22,7 +21,7 @@ maud = { version = "0.23" }
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
-tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["fs"] }
 tree-sitter = { version = "0.20" }
 tree-sitter-highlight = { version = "0.20" }
 tree-sitter-rust = { version = "0.20" }
@@ -30,3 +29,6 @@ uuid = { version = "0.8", features = ["serde"] }
 
 [dev-dependencies]
 pretty_assertions = { version = "1" }
+
+[workspace]
+members = ["bin"]
