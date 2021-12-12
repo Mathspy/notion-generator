@@ -414,6 +414,52 @@ pub enum PageParent {
     Workspace,
 }
 
+pub mod properties {
+    use super::{NotionDate, RichText};
+    use serde::Deserialize;
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    pub struct TitleProperty {
+        pub id: String,
+        pub title: Vec<RichText>,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    pub struct RichTextProperty {
+        pub id: String,
+        pub rich_text: Vec<RichText>,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    pub struct NumberProperty {
+        pub id: String,
+        pub number: Option<f64>,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    pub struct DateProperty {
+        pub id: String,
+        pub date: Option<NotionDate>,
+    }
+
+    // TODO: Rest of properties:
+    // - select
+    // - multi_select
+    // - formula
+    // - relation
+    // - rollup
+    // - people
+    // - files
+    // - checkbox
+    // - url
+    // - email
+    // - phone_number
+    // - created_time
+    // - created_by
+    // - last_edited_time
+    // - last_edited_by
+}
+
 // ------------------ NOTION BLOCK OBJECT ------------------
 // As defined in https://developers.notion.com/reference/block
 #[derive(Debug, Deserialize, PartialEq)]
@@ -750,6 +796,7 @@ pub enum EmojiOrFile {
 #[cfg(test)]
 mod tests {
     use super::{
+        properties::{DateProperty, RichTextProperty},
         Block, BlockType, Emoji, EmojiOrFile, Error, ErrorCode, File, Language, List, NotionDate,
         Page, PageParent, RichText, RichTextLink, RichTextMentionType, RichTextType, Time,
         UserType,
@@ -1255,12 +1302,7 @@ mod tests {
 
         #[derive(Debug, Deserialize, PartialEq)]
         struct Properties {
-            published: Date,
-        }
-
-        #[derive(Debug, Deserialize, PartialEq)]
-        struct Date {
-            date: Option<String>,
+            published: DateProperty,
         }
 
         assert_eq!(
@@ -1274,7 +1316,10 @@ mod tests {
                 icon: None,
                 archived: false,
                 properties: Properties {
-                    published: Date { date: None }
+                    published: DateProperty {
+                        id: "Fpr%3E".to_string(),
+                        date: None
+                    }
                 },
                 parent: PageParent::Database {
                     id: "4045404e-233a-4278-84f0-b3389887b315".to_string()
@@ -1310,12 +1355,7 @@ mod tests {
 
         #[derive(Debug, Deserialize, PartialEq)]
         struct Properties2 {
-            description: Description,
-        }
-
-        #[derive(Debug, Deserialize, PartialEq)]
-        struct Description {
-            rich_text: Vec<RichText>,
+            description: RichTextProperty,
         }
 
         assert_eq!(
@@ -1329,7 +1369,10 @@ mod tests {
                 icon: None,
                 archived: false,
                 properties: Properties2 {
-                    description: Description { rich_text: vec![] }
+                    description: RichTextProperty {
+                        id: "QPqF".to_string(),
+                        rich_text: vec![]
+                    }
                 },
                 parent: PageParent::Page {
                     id: "4045404e-233a-4278-84f0-b3389887b315".to_string()
@@ -1390,7 +1433,8 @@ mod tests {
                 icon: None,
                 archived: false,
                 properties: Properties2 {
-                    description: Description {
+                    description: RichTextProperty {
+                        id: "QPqF".to_string(),
                         rich_text: vec![RichText {
                             plain_text: "Day 1: Down the rabbit hole we go".to_string(),
                             href: None,
