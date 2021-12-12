@@ -382,6 +382,20 @@ pub struct Page<P> {
     #[serde(deserialize_with = "deserializers::page_parent")]
     pub parent: PageParent,
     pub url: String,
+    /// All the blocks inside of the page
+    ///
+    /// This isn't technically part of the Notion spec but it makes sense here so!
+    #[serde(default)]
+    pub children: Vec<Block>,
+}
+
+impl<P> Page<P> {
+    pub fn replace_children(self, updated_children: Vec<Block>) -> Self {
+        Self {
+            children: updated_children,
+            ..self
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -1253,7 +1267,8 @@ mod tests {
                 parent: PageParent::Database {
                     id: "4045404e-233a-4278-84f0-b3389887b315".to_string()
                 },
-                url: "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d".to_string()
+                url: "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d".to_string(),
+                children: vec![]
             }
         );
 
@@ -1307,7 +1322,8 @@ mod tests {
                 parent: PageParent::Page {
                     id: "4045404e-233a-4278-84f0-b3389887b315".to_string()
                 },
-                url: "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d".to_string()
+                url: "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d".to_string(),
+                children: vec![]
             }
         );
 
@@ -1375,7 +1391,8 @@ mod tests {
                     }
                 },
                 parent: PageParent::Workspace,
-                url: "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d".to_string()
+                url: "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d".to_string(),
+                children: vec![]
             }
         );
     }
