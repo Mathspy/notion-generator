@@ -96,7 +96,7 @@ impl PlainText for Vec<&RichText> {
 }
 
 mod deserializers {
-    use super::{RichTextLink, Time};
+    use super::{PageParent, RichTextLink, Time};
     use either::Either;
     use serde::{
         de::{Error, Unexpected},
@@ -186,6 +186,53 @@ mod deserializers {
             Ok(Some(RichTextLink::External {
                 url: link.url.to_string(),
             }))
+        }
+    }
+
+    pub fn page_parent<'a, D: Deserializer<'a>>(deserializer: D) -> Result<PageParent, D::Error> {
+        #[derive(Deserialize)]
+        struct Parent<'a> {
+            #[serde(rename = "type")]
+            ty: &'a str,
+            database_id: Option<String>,
+            page_id: Option<String>,
+            workspace: Option<bool>,
+        }
+
+        let parent = Parent::deserialize(deserializer)?;
+        match parent.ty {
+            "database_id" => {
+                if let Some(id) = parent.database_id {
+                    Ok(PageParent::Database { id })
+                } else {
+                    Err(D::Error::missing_field("database_id"))
+                }
+            }
+            "page_id" => {
+                if let Some(id) = parent.page_id {
+                    Ok(PageParent::Page { id })
+                } else {
+                    Err(D::Error::missing_field("page_id"))
+                }
+            }
+            "workspace" => {
+                if let Some(should_be_true) = parent.workspace {
+                    if !should_be_true {
+                        Err(D::Error::invalid_value(
+                            Unexpected::Bool(false),
+                            &"expected workspace to be `true` since parent type workspace",
+                        ))
+                    } else {
+                        Ok(PageParent::Workspace)
+                    }
+                } else {
+                    Err(D::Error::missing_field("workspace"))
+                }
+            }
+            ty => Err(D::Error::invalid_value(
+                Unexpected::Str(ty),
+                &r#"expected `type` to be one of "database_id", "page_id", "workspace""#,
+            )),
         }
     }
 }
@@ -316,6 +363,32 @@ impl Default for Color {
     fn default() -> Self {
         Color::Default
     }
+}
+
+// ------------------ NOTION PAGE OBJECT -------------------
+// As defined in https://developers.notion.com/reference/page
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct Page<P> {
+    // TODO: assert!(page.object == "page");
+    pub object: String,
+    pub id: NotionId,
+    pub created_time: String,
+    pub last_edited_time: String,
+    pub archived: bool,
+    pub icon: Option<EmojiOrFile>,
+    #[serde(flatten)]
+    pub cover: Option<File>,
+    pub properties: P,
+    #[serde(deserialize_with = "deserializers::page_parent")]
+    pub parent: PageParent,
+    pub url: String,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum PageParent {
+    Database { id: String },
+    Page { id: String },
+    Workspace,
 }
 
 // ------------------ NOTION BLOCK OBJECT ------------------
@@ -653,14 +726,13 @@ pub enum EmojiOrFile {
 
 #[cfg(test)]
 mod tests {
-    use crate::response::RichTextLink;
-
     use super::{
-        Block, BlockType, Emoji, EmojiOrFile, Error, ErrorCode, File, Language, List, RichText,
-        RichTextMentionType, RichTextType, Time, UserType,
+        Block, BlockType, Emoji, EmojiOrFile, Error, ErrorCode, File, Language, List, Page,
+        PageParent, RichText, RichTextLink, RichTextMentionType, RichTextType, Time, UserType,
     };
     use either::Either;
     use pretty_assertions::assert_eq;
+    use serde::Deserialize;
     use time::macros::{date, datetime};
 
     #[test]
@@ -1119,6 +1191,191 @@ mod tests {
                         id: "332b7b052ded4955bc7760851242836a".parse().unwrap(),
                     },
                 },
+            }
+        );
+    }
+
+    #[test]
+    fn test_pages() {
+        let json = r#"
+            {
+              "object": "page",
+              "id": "ac3fb543-001f-4be5-a25e-4978abd05b1d",
+              "created_time": "2021-11-29T18:20:00.000Z",
+              "last_edited_time": "2021-12-06T09:25:00.000Z",
+              "cover": {
+                "type": "file",
+                "file": {
+                  "url": "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/2044fff8-de9e-418b-a7c5-6f0075c0564f/entity_component_system_better.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211213%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211213T134329Z&X-Amz-Expires=3600&X-Amz-Signature=ab03b81b8492949ad6b0357cfcabbb1fd3990b061084f8b4b385695613a6548f&X-Amz-SignedHeaders=host&x-id=GetObject",
+                  "expiry_time": "2021-12-13T14:43:29.267Z"
+                }
+              },
+              "icon": null,
+              "parent": {
+                "type": "database_id",
+                "database_id": "4045404e-233a-4278-84f0-b3389887b315"
+              },
+              "archived": false,
+              "properties": {
+                "published": {
+                  "id": "Fpr%3E",
+                  "type": "date",
+                  "date": null
+                }
+              },
+              "url": "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d"
+            }
+        "#;
+
+        #[derive(Debug, Deserialize, PartialEq)]
+        struct Properties {
+            published: Date,
+        }
+
+        #[derive(Debug, Deserialize, PartialEq)]
+        struct Date {
+            date: Option<String>,
+        }
+
+        assert_eq!(
+            serde_json::from_str::<Page<Properties>>(json).unwrap(),
+            Page {
+                object: "page".to_string(),
+                id: "ac3fb543-001f-4be5-a25e-4978abd05b1d".parse().unwrap(),
+                created_time: "2021-11-29T18:20:00.000Z".to_string(),
+                last_edited_time: "2021-12-06T09:25:00.000Z".to_string(),
+                cover: None,
+                icon: None,
+                archived: false,
+                properties: Properties {
+                    published: Date { date: None }
+                },
+                parent: PageParent::Database {
+                    id: "4045404e-233a-4278-84f0-b3389887b315".to_string()
+                },
+                url: "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d".to_string()
+            }
+        );
+
+        let json = r#"
+            {
+              "object": "page",
+              "id": "ac3fb543-001f-4be5-a25e-4978abd05b1d",
+              "created_time": "2021-11-29T18:20:00.000Z",
+              "last_edited_time": "2021-12-06T09:25:00.000Z",
+              "cover": null,
+              "icon": null,
+              "parent": {
+                "type": "page_id",
+                "page_id": "4045404e-233a-4278-84f0-b3389887b315"
+              },
+              "archived": false,
+              "properties": {
+                "description": {
+                  "id": "QPqF",
+                  "type": "rich_text",
+                  "rich_text": []
+                }
+              },
+              "url": "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d"
+            }
+        "#;
+
+        #[derive(Debug, Deserialize, PartialEq)]
+        struct Properties2 {
+            description: Description,
+        }
+
+        #[derive(Debug, Deserialize, PartialEq)]
+        struct Description {
+            rich_text: Vec<RichText>,
+        }
+
+        assert_eq!(
+            serde_json::from_str::<Page<Properties2>>(json).unwrap(),
+            Page {
+                object: "page".to_string(),
+                id: "ac3fb543-001f-4be5-a25e-4978abd05b1d".parse().unwrap(),
+                created_time: "2021-11-29T18:20:00.000Z".to_string(),
+                last_edited_time: "2021-12-06T09:25:00.000Z".to_string(),
+                cover: None,
+                icon: None,
+                archived: false,
+                properties: Properties2 {
+                    description: Description { rich_text: vec![] }
+                },
+                parent: PageParent::Page {
+                    id: "4045404e-233a-4278-84f0-b3389887b315".to_string()
+                },
+                url: "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d".to_string()
+            }
+        );
+
+        let json = r#"
+            {
+              "object": "page",
+              "id": "ac3fb543-001f-4be5-a25e-4978abd05b1d",
+              "created_time": "2021-11-29T18:20:00.000Z",
+              "last_edited_time": "2021-12-06T09:25:00.000Z",
+              "cover": null,
+              "icon": null,
+              "parent": {
+                "type": "workspace",
+                "workspace": true
+              },
+              "archived": false,
+              "properties": {
+                "description": {
+                  "id": "QPqF",
+                  "type": "rich_text",
+                  "rich_text": [{
+                    "type": "text",
+                    "text": {
+                      "content": "Day 1: Down the rabbit hole we go",
+                      "link": null
+                    },
+                    "annotations": {
+                      "bold": false,
+                      "italic": false,
+                      "strikethrough": false,
+                      "underline": false,
+                      "code": false,
+                      "color": "default"
+                    },
+                    "plain_text": "Day 1: Down the rabbit hole we go",
+                    "href": null
+                  }]
+                }
+              },
+              "url": "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d"
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<Page<Properties2>>(json).unwrap(),
+            Page {
+                object: "page".to_string(),
+                id: "ac3fb543-001f-4be5-a25e-4978abd05b1d".parse().unwrap(),
+                created_time: "2021-11-29T18:20:00.000Z".to_string(),
+                last_edited_time: "2021-12-06T09:25:00.000Z".to_string(),
+                cover: None,
+                icon: None,
+                archived: false,
+                properties: Properties2 {
+                    description: Description {
+                        rich_text: vec![RichText {
+                            plain_text: "Day 1: Down the rabbit hole we go".to_string(),
+                            href: None,
+                            annotations: Default::default(),
+                            ty: RichTextType::Text {
+                                content: "Day 1: Down the rabbit hole we go".to_string(),
+                                link: None,
+                            },
+                        }]
+                    }
+                },
+                parent: PageParent::Workspace,
+                url: "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d".to_string()
             }
         );
     }
