@@ -470,9 +470,9 @@ pub enum Language {
     C,
     Clojure,
     CoffeeScript,
-    #[serde(rename = "c++")]
+    #[serde(rename(deserialize = "c++"))]
     CPlusPlus,
-    #[serde(rename = "c#")]
+    #[serde(rename(deserialize = "c#"))]
     CSharp,
     Css,
     Dart,
@@ -483,7 +483,7 @@ pub enum Language {
     Erlang,
     Flow,
     Fortran,
-    #[serde(rename = "f#")]
+    #[serde(rename(deserialize = "f#"))]
     FSharp,
     Gherkin,
     Glsl,
@@ -509,13 +509,13 @@ pub enum Language {
     Matlab,
     Mermaid,
     Nix,
-    #[serde(rename = "objective-c")]
+    #[serde(rename(deserialize = "objective-c"))]
     ObjectiveC,
     Ocaml,
     Pascal,
     Perl,
     Php,
-    #[serde(rename = "plain text")]
+    #[serde(rename(deserialize = "plain text"))]
     PlainText,
     Powershell,
     Prolog,
@@ -533,16 +533,16 @@ pub enum Language {
     Sql,
     Swift,
     TypeScript,
-    #[serde(rename = "vb.net")]
+    #[serde(rename(deserialize = "vb.net"))]
     VbNet,
     Verilog,
     Vhdl,
-    #[serde(rename = "visual basic")]
+    #[serde(rename(deserialize = "visual basic"))]
     VisualBasic,
     WebAssembly,
     Xml,
     Yaml,
-    #[serde(rename = "java/c/c++/c#")]
+    #[serde(rename(deserialize = "java/c/c++/c#"))]
     CLike,
 }
 
