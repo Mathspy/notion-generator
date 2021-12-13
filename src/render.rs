@@ -87,7 +87,7 @@ pub trait Title {
 impl<'l> HtmlRenderer<'l> {
     pub fn render_html(&self, blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
         let mut downloadables = Downloadables::new();
-        let rendered_blocks = downloadables.extract(self.render_blocks(&blocks, None));
+        let rendered_blocks = downloadables.extract(self.render_blocks(&blocks, None, false));
 
         let markup = html! {
             (DOCTYPE)
@@ -117,6 +117,7 @@ impl<'l> HtmlRenderer<'l> {
         &'a self,
         blocks: I,
         class: Option<&'a str>,
+        downgrade_headings: bool,
     ) -> impl Iterator<Item = Result<(Markup, Downloadables)>> + 'a
     where
         I: IntoIterator<Item = &'a Block> + 'a,
@@ -126,8 +127,10 @@ impl<'l> HtmlRenderer<'l> {
             .map(BlockCoalition::Solo)
             .coalesce(|a, b| a + b)
             .map(move |coalition| match coalition {
-                BlockCoalition::List(ty, list) => self.render_list(ty, list, class),
-                BlockCoalition::Solo(block) => self.render_block(block, class),
+                BlockCoalition::List(ty, list) => {
+                    self.render_list(ty, list, class, downgrade_headings)
+                }
+                BlockCoalition::Solo(block) => self.render_block(block, class, downgrade_headings),
             })
     }
 
@@ -136,6 +139,7 @@ impl<'l> HtmlRenderer<'l> {
         ty: ListType,
         list: Vec<&Block>,
         class: Option<&str>,
+        downgrade_headings: bool,
     ) -> Result<(Markup, Downloadables)> {
         let mut downloadables = Downloadables::new();
 
@@ -144,7 +148,7 @@ impl<'l> HtmlRenderer<'l> {
                 Ok::<_, anyhow::Error>(html! {
                     li id=(item.id) {
                         (self.render_rich_text(text))
-                        @for block in downloadables.extract(self.render_blocks(children, class)) {
+                        @for block in downloadables.extract(self.render_blocks(children, class, downgrade_headings)) {
                             (block?)
                         }
                     }
@@ -175,26 +179,58 @@ impl<'l> HtmlRenderer<'l> {
         result.map(|markup| (markup, downloadables))
     }
 
-    fn render_block(&self, block: &Block, class: Option<&str>) -> Result<(Markup, Downloadables)> {
+    fn render_block(
+        &self,
+        block: &Block,
+        class: Option<&str>,
+        downgrade_headings: bool,
+    ) -> Result<(Markup, Downloadables)> {
         let mut downloadables = Downloadables::new();
 
         let result = match &block.ty {
-            BlockType::HeadingOne { text } => Ok(html! {
-                h1 id=(block.id) class=[class] {
-                    (render_heading_link_icon(self.heading_anchors, block.id))
-                    (self.render_rich_text(text))
+            BlockType::HeadingOne { text } => Ok(if !downgrade_headings {
+                html! {
+                    h1 id=(block.id) class=[class] {
+                        (render_heading_link_icon(self.heading_anchors, block.id))
+                        (self.render_rich_text(text))
+                    }
+                }
+            } else {
+                html! {
+                    h2 id=(block.id) class=[class] {
+                        (render_heading_link_icon(self.heading_anchors, block.id))
+                        (self.render_rich_text(text))
+                    }
                 }
             }),
-            BlockType::HeadingTwo { text } => Ok(html! {
-                h2 id=(block.id) class=[class] {
-                    (render_heading_link_icon(self.heading_anchors, block.id))
-                    (self.render_rich_text(text))
+            BlockType::HeadingTwo { text } => Ok(if !downgrade_headings {
+                html! {
+                    h2 id=(block.id) class=[class] {
+                        (render_heading_link_icon(self.heading_anchors, block.id))
+                        (self.render_rich_text(text))
+                    }
+                }
+            } else {
+                html! {
+                    h3 id=(block.id) class=[class] {
+                        (render_heading_link_icon(self.heading_anchors, block.id))
+                        (self.render_rich_text(text))
+                    }
                 }
             }),
-            BlockType::HeadingThree { text } => Ok(html! {
-                h3 id=(block.id) class=[class] {
-                    (render_heading_link_icon(self.heading_anchors, block.id))
-                    (self.render_rich_text(text))
+            BlockType::HeadingThree { text } => Ok(if !downgrade_headings {
+                html! {
+                    h3 id=(block.id) class=[class] {
+                        (render_heading_link_icon(self.heading_anchors, block.id))
+                        (self.render_rich_text(text))
+                    }
+                }
+            } else {
+                html! {
+                    h4 id=(block.id) class=[class] {
+                        (render_heading_link_icon(self.heading_anchors, block.id))
+                        (self.render_rich_text(text))
+                    }
                 }
             }),
             BlockType::Divider {} => Ok(html! {
@@ -215,7 +251,7 @@ impl<'l> HtmlRenderer<'l> {
                             p {
                                 (self.render_rich_text(text))
                             }
-                            @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
+                            @for child in downloadables.extract(self.render_blocks(children, Some("indent"), downgrade_headings)) {
                                 (child?)
                             }
                         }
@@ -225,7 +261,7 @@ impl<'l> HtmlRenderer<'l> {
             BlockType::Quote { text, children } => Ok(html! {
                 blockquote id=(block.id) {
                     (self.render_rich_text(text))
-                    @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
+                    @for child in downloadables.extract(self.render_blocks(children, Some("indent"), downgrade_headings)) {
                         (child?)
                     }
                 }
@@ -244,7 +280,7 @@ impl<'l> HtmlRenderer<'l> {
                 ul {
                     li id=(block.id) {
                         (self.render_rich_text(text))
-                        @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
+                        @for child in downloadables.extract(self.render_blocks(children, Some("indent"), downgrade_headings)) {
                             (child?)
                         }
                     }
@@ -254,7 +290,7 @@ impl<'l> HtmlRenderer<'l> {
                 ol {
                     li id=(block.id) {
                         (self.render_rich_text(text))
-                        @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
+                        @for child in downloadables.extract(self.render_blocks(children, Some("indent"), downgrade_headings)) {
                             (child?)
                         }
                     }
@@ -334,7 +370,7 @@ impl<'l> HtmlRenderer<'l> {
                             p {
                                 (self.render_rich_text(text))
                             }
-                            @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
+                            @for child in downloadables.extract(self.render_blocks(children, Some("indent"), downgrade_headings)) {
                                 (child?)
                             }
                         }
@@ -617,7 +653,7 @@ mod tests {
         };
 
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -655,7 +691,7 @@ mod tests {
             },
         };
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -684,7 +720,7 @@ mod tests {
             },
         };
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -713,7 +749,7 @@ mod tests {
             },
         };
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -751,7 +787,7 @@ mod tests {
             },
         };
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -780,7 +816,7 @@ mod tests {
             },
         };
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -809,7 +845,7 @@ mod tests {
             },
         };
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -838,7 +874,7 @@ mod tests {
         };
 
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(markup, r#"<hr id="5e845049255f423296fd6f20449be0bc">"#);
@@ -874,7 +910,7 @@ mod tests {
             },
         };
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -953,7 +989,7 @@ mod tests {
         };
 
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -995,7 +1031,7 @@ mod tests {
         };
 
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -1038,7 +1074,7 @@ mod tests {
         };
 
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -1178,7 +1214,7 @@ mod tests {
         };
 
         let (markup, downloadables) = renderer
-            .render_block(&block, None)
+            .render_block(&block, None, false)
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .unwrap();
         assert_eq!(
@@ -1239,7 +1275,7 @@ mod tests {
                 ];
 
         let (markup, downloadables) = renderer
-            .render_blocks(&blocks, None)
+            .render_blocks(&blocks, None, false)
             .map(|result| result.unwrap())
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .fold(
@@ -1355,7 +1391,7 @@ mod tests {
         ];
 
         let (markup, downloadables) = renderer
-            .render_blocks(&blocks, None)
+            .render_blocks(&blocks, None, false)
             .map(|result| result.unwrap())
             .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
             .fold(
