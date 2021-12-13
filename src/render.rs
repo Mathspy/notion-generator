@@ -2,7 +2,7 @@ use crate::download::{Downloadable, Downloadables, FILES_DIR};
 use crate::highlight::highlight;
 use crate::options::HeadingAnchors;
 use crate::response::{
-    Block, BlockType, EmojiOrFile, File, ListType, NotionId, RichText, RichTextLink,
+    Block, BlockType, EmojiOrFile, File, ListType, NotionId, Page, RichText, RichTextLink,
     RichTextMentionType, RichTextType, Time,
 };
 use anyhow::{Context, Result};
@@ -110,6 +110,24 @@ impl<'l> HtmlRenderer<'l> {
         };
 
         Ok((markup, downloadables))
+    }
+
+    pub fn render_page<P: Title>(&self, page: &Page<P>) -> Result<(Markup, Downloadables)> {
+        let mut downloadables = Downloadables::new();
+        let rendered_blocks = downloadables.extract(self.render_blocks(&page.children, None, true));
+
+        Ok((
+            html! {
+                h1 id=(page.id) {
+                    (render_heading_link_icon(self.heading_anchors, page.id))
+                    (self.render_rich_text(page.properties.title()))
+                }
+                @for block in rendered_blocks {
+                    (block?)
+                }
+            },
+            downloadables,
+        ))
     }
 
     /// Render a group of blocks into HTML
@@ -616,13 +634,14 @@ fn render_link_icon() -> Markup {
 
 #[cfg(test)]
 mod tests {
-    use super::{HtmlRenderer, RichTextRenderer};
+    use super::{HtmlRenderer, RichTextRenderer, Title};
     use crate::{
         download::Downloadable,
         options::HeadingAnchors,
         response::{
-            Annotations, Block, BlockType, Color, Emoji, EmojiOrFile, File, Language, NotionDate,
-            RichText, RichTextLink, RichTextMentionType, RichTextType, Time,
+            properties::TitleProperty, Annotations, Block, BlockType, Color, Emoji, EmojiOrFile,
+            File, Language, NotionDate, Page, PageParent, RichText, RichTextLink,
+            RichTextMentionType, RichTextType, Time,
         },
     };
     use either::Either;
@@ -1718,5 +1737,78 @@ mod tests {
                 .into_string(),
             r#"<span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>f</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mi>y</mi></mrow><annotation encoding="application/x-tex">f(x)=y</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.10764em;">f</span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">y</span></span></span></span>"#
         )
+    }
+
+    #[test]
+    fn render_page() {
+        struct Properties {
+            name: TitleProperty,
+        }
+        impl Title for Properties {
+            fn title(&self) -> &[RichText] {
+                self.name.title.as_slice()
+            }
+        }
+
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["ac3fb543001f4be5a25e4978abd05b1d".parse().unwrap()]),
+            link_map: &HashMap::new(),
+        };
+        let page = Page {
+            object: "page".to_string(),
+            id: "ac3fb543-001f-4be5-a25e-4978abd05b1d".parse().unwrap(),
+            created_time: "2021-11-29T18:20:00.000Z".to_string(),
+            last_edited_time: "2021-12-06T09:25:00.000Z".to_string(),
+            cover: None,
+            icon: None,
+            archived: false,
+            properties: Properties {
+                name: TitleProperty {
+                    id: "QPqF".to_string(),
+                    title: vec![RichText {
+                        plain_text: "Day 1: Down the rabbit hole we go".to_string(),
+                        href: None,
+                        annotations: Default::default(),
+                        ty: RichTextType::Text {
+                            content: "Day 1: Down the rabbit hole we go".to_string(),
+                            link: None,
+                        },
+                    }],
+                },
+            },
+            parent: PageParent::Workspace,
+            url: "https://www.notion.so/ac3fb543001f4be5a25e4978abd05b1d".to_string(),
+            children: vec![Block {
+                object: "block".to_string(),
+                id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".parse().unwrap(),
+                created_time: "2021-11-13T17:35:00.000Z".to_string(),
+                last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
+                has_children: false,
+                archived: false,
+                ty: BlockType::HeadingOne {
+                    text: vec![RichText {
+                        plain_text: "Cool test".to_string(),
+                        href: None,
+                        annotations: Default::default(),
+                        ty: RichTextType::Text {
+                            content: "Cool test".to_string(),
+                            link: None,
+                        },
+                    }],
+                },
+            }],
+        };
+
+        let (markup, downloadables) = renderer
+            .render_page(&page)
+            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .unwrap();
+
+        assert_eq!(
+            markup,
+            r#"<h1 id="ac3fb543001f4be5a25e4978abd05b1d">Day 1: Down the rabbit hole we go</h1><h2 id="8cac60c274b9408cacbd0895cfd7b7f8">Cool test</h2>"#
+        );
+        assert_eq!(downloadables, vec![]);
     }
 }
