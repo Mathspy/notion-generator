@@ -102,13 +102,16 @@ impl HtmlRenderer {
     }
 
     /// Render a group of blocks into HTML
-    fn render_blocks<'a>(
+    fn render_blocks<'a, I>(
         &'a self,
-        blocks: &'a [Block],
+        blocks: I,
         class: Option<&'a str>,
-    ) -> impl Iterator<Item = Result<(Markup, Downloadables)>> + 'a {
+    ) -> impl Iterator<Item = Result<(Markup, Downloadables)>> + 'a
+    where
+        I: IntoIterator<Item = &'a Block> + 'a,
+    {
         blocks
-            .iter()
+            .into_iter()
             .map(BlockCoalition::Solo)
             .coalesce(|a, b| a + b)
             .map(move |coalition| match coalition {
