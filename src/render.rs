@@ -74,7 +74,7 @@ impl<'a> std::ops::Add for BlockCoalition<'a> {
 }
 
 impl<'l> HtmlRenderer<'l> {
-    pub fn render_page(&self, blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
+    pub fn render_html(&self, blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
         let mut downloadables = Downloadables::new();
         let rendered_blocks = downloadables.extract(self.render_blocks(&blocks, None));
 

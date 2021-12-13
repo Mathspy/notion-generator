@@ -121,7 +121,7 @@ async fn main() -> Result<()> {
         link_map: &opts.link_map.0,
     };
     let (markup, downloadables) = renderer
-        .render_page(blocks, head)
+        .render_html(blocks, head)
         .context("Failed to render page")?;
 
     let write_markup = async {
