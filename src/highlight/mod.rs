@@ -35,6 +35,17 @@ pub fn highlight(lang: &Language, code: &str, id: &str) -> Result<Markup> {
         .context("Language type was not a JSON string? This should be unreachable")?;
 
     let (tree_sitter_lang, highlights) = match lang {
+        Language::PlainText => {
+            return Ok(html! {
+                pre id=(id) class=(lang_name) {
+                    // TODO: I might remove this code wrapper IF Notion's language support improves
+                    // even TOML is currently not supported :<
+                    code class=(lang_name) {
+                        (code)
+                    }
+                }
+            });
+        }
         Language::Rust => (tree_sitter_rust::language(), RUST_HIGHLIGHTS),
         _ => bail!("Unsupported language {}", lang_name),
     };
@@ -66,4 +77,26 @@ pub fn highlight(lang: &Language, code: &str, id: &str) -> Result<Markup> {
             }
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::highlight;
+    use crate::response::Language;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn plain_text() {
+        assert_eq!(
+            highlight(
+                &Language::PlainText,
+                "Hey there, lovely friend!\nI hope you have a great day!",
+                "5e845049255f423296fd6f20449be0bc"
+            )
+            .unwrap()
+            .into_string(),
+            r#"<pre id="5e845049255f423296fd6f20449be0bc" class="plain_text"><code class="plain_text">Hey there, lovely friend!
+I hope you have a great day!</code></pre>"#
+        );
+    }
 }
