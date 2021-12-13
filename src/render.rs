@@ -73,6 +73,17 @@ impl<'a> std::ops::Add for BlockCoalition<'a> {
     }
 }
 
+/// Trait to retrieve the title from arbitrary Properties structs
+pub trait Title {
+    /// Return the title property's `title` field
+    ///
+    /// If you're curious why title is returned from API as Vec<RichText> it's because titles can
+    /// contain mentions and other types of rich text besides text. And although Notion doesn't
+    /// currently display any annotations (bold, italic, etc) on titles in their desktop app, the
+    /// information actually gets saved and will be included in the [RichText] objects
+    fn title(&self) -> &[RichText];
+}
+
 impl<'l> HtmlRenderer<'l> {
     pub fn render_html(&self, blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
         let mut downloadables = Downloadables::new();
