@@ -17,7 +17,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub struct HtmlRenderer {
+pub struct HtmlRenderer<'l> {
     pub heading_anchors: HeadingAnchors,
     /// A list of pages that will be rendered together, used to figure out whether to use fragment
     /// part of links alone (#block_id) or to use the full canonical link (/page_id#block_id)
@@ -29,7 +29,7 @@ pub struct HtmlRenderer {
     pub current_pages: HashSet<String>,
     /// A map from page ids to URL paths to replace page ids in links with the corresponding URL
     /// path
-    pub link_map: HashMap<String, String>,
+    pub link_map: &'l HashMap<String, String>,
 }
 
 enum BlockCoalition<'a> {
@@ -73,7 +73,7 @@ impl<'a> std::ops::Add for BlockCoalition<'a> {
     }
 }
 
-impl HtmlRenderer {
+impl<'l> HtmlRenderer<'l> {
     pub fn render_page(&self, blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
         let mut downloadables = Downloadables::new();
         let rendered_blocks = downloadables.extract(self.render_blocks(&blocks, None));
@@ -386,7 +386,7 @@ impl<'a> RichTextRenderer<'a> {
         Self {
             rich_text,
             current_pages: &renderer.current_pages,
-            link_map: &renderer.link_map,
+            link_map: renderer.link_map,
         }
     }
 }
@@ -593,7 +593,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
 
         let block = Block {
@@ -622,7 +622,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
 
         let block = Block {
@@ -718,7 +718,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::Icon,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
 
         let block = Block {
@@ -814,7 +814,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
 
         let block = Block {
@@ -840,7 +840,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
 
         let block = Block {
@@ -958,7 +958,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
 
         let block = Block {
@@ -1001,7 +1001,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
 
         let block = Block {
@@ -1062,7 +1062,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
 
         let block = Block {
@@ -1183,7 +1183,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
 
         let blocks = [
@@ -1268,7 +1268,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
 
         let blocks = [
@@ -1386,12 +1386,12 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::new(),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
         let renderer_with_link_map = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::new(),
-            link_map: HashMap::from([(
+            link_map: &HashMap::from([(
                 "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
                 "/path/to/page".to_string(),
             )]),
@@ -1399,7 +1399,7 @@ mod tests {
         let renderer_with_pages = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
         let text = RichText {
             href: None,
@@ -1654,7 +1654,7 @@ mod tests {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
-            link_map: HashMap::new(),
+            link_map: &HashMap::new(),
         };
         let text = RichText {
             href: None,

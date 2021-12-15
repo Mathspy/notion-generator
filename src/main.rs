@@ -234,7 +234,7 @@ async fn main() -> Result<()> {
     let renderer = HtmlRenderer {
         heading_anchors: opts.heading_anchors,
         current_pages,
-        link_map: opts.link_map.0,
+        link_map: &opts.link_map.0,
     };
     let (markup, downloadables) = renderer
         .render_page(blocks, head)
