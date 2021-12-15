@@ -63,6 +63,12 @@ impl PlainText for &[RichText] {
     }
 }
 
+impl PlainText for Vec<RichText> {
+    fn plain_text(&self) -> String {
+        self.iter().map(|rich_text| &rich_text.plain_text).join("")
+    }
+}
+
 mod deserializers {
     use super::{RichTextLink, Time};
     use either::Either;
