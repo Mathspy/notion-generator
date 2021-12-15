@@ -1,7 +1,6 @@
 use anyhow::Result;
+use flurry::HashSet;
 use futures_util::stream::{FuturesUnordered, TryStreamExt};
-use itertools::Itertools;
-use maud::Markup;
 use reqwest::Client;
 use std::{
     hash::{Hash, Hasher},
@@ -46,37 +45,46 @@ impl Downloadable {
 /// A list of things that needs downloading
 /// Their URL and the relative path they need to be downloaded to
 pub struct Downloadables {
-    pub list: Vec<Downloadable>,
+    pub set: HashSet<Downloadable>,
 }
 
 impl Downloadables {
     pub fn new() -> Self {
-        Downloadables { list: Vec::new() }
+        Downloadables {
+            set: HashSet::new(),
+        }
     }
 
-    pub fn extract<'a, I>(&'a mut self, iter: I) -> impl Iterator<Item = Result<Markup>> + 'a
-    where
-        I: Iterator<Item = Result<(Markup, Self)>> + 'a,
-    {
-        iter.map_ok(|(markup, downloadables)| {
-            self.list.extend(downloadables.list);
-            markup
-        })
+    pub fn insert(&self, downloadable: Downloadable) -> bool {
+        let guard = self.set.guard();
+        self.set.insert(downloadable, &guard)
     }
 
-    pub async fn download_all(self, client: &Client, output: &Path) -> Result<()> {
+    pub async fn download_all(self, client: Client, output: &Path) -> Result<()> {
         tokio::fs::create_dir(output.join(FILES_DIR)).await?;
 
-        let write_operations = self
-            .list
-            .into_iter()
-            .map(|downloadable| async {
-                let response = client.get(downloadable.url).send().await?;
-                let bytes = response.bytes().await?;
-                tokio::fs::write(output.join(downloadable.path), bytes.as_ref()).await?;
-                Ok(())
-            })
-            .collect::<FuturesUnordered<_>>();
+        let client_ref = &client;
+
+        // We need this block to drop guard at the end of it to ensure it won't be
+        // held across .await points
+        // Guard is not Send and it will make the whole function !Send if it's held
+        // across .await points
+        //
+        // drop(guard) doesn't currently work
+        let write_operations = {
+            let guard = self.set.guard();
+
+            self.set
+                .iter(&guard)
+                .map(Clone::clone)
+                .map(|downloadable| async move {
+                    let response = client_ref.get(&downloadable.url).send().await?;
+                    let bytes = response.bytes().await?;
+                    tokio::fs::write(output.join(&downloadable.path), bytes.as_ref()).await?;
+                    Ok(())
+                })
+                .collect::<FuturesUnordered<_>>()
+        };
 
         write_operations.try_collect::<()>().await
     }
@@ -85,59 +93,60 @@ impl Downloadables {
 #[cfg(test)]
 mod tests {
     use super::{Downloadable, Downloadables, FILES_DIR};
-    use maud::html;
-    use std::path::{Path, PathBuf};
+    use std::{
+        collections::HashSet,
+        path::{Path, PathBuf},
+    };
 
     #[test]
     fn can_extract() {
-        let mut downloadables = Downloadables::new();
+        let downloadables = Downloadables::new();
         let iterator = (0..10).map(|i| {
-            Ok::<_, anyhow::Error>((
-                html! {
-                    (i)
-                },
-                if i % 3 == 0 {
-                    let id = char::from_u32(65 + i).unwrap();
-                    let mut path = Path::new(FILES_DIR).to_owned();
-                    path.push(String::from(id));
-                    path.set_extension("png");
+            if i % 3 == 0 {
+                let id = char::from_u32(65 + i).unwrap();
+                let mut path = Path::new(FILES_DIR).to_owned();
+                path.push(String::from(id));
+                path.set_extension("png");
 
-                    Downloadables {
-                        list: vec![Downloadable::new(
-                            format!("https://gamediary.dev/{}.png", i),
-                            path,
-                        )],
-                    }
-                } else {
-                    Downloadables { list: Vec::new() }
-                },
-            ))
+                Some(Downloadable::new(
+                    format!("https://gamediary.dev/{}.png", i),
+                    path,
+                ))
+            } else {
+                None
+            }
         });
 
-        downloadables.extract(iterator).for_each(|result| {
-            drop(result.unwrap());
+        iterator.for_each(|downloadable| {
+            if let Some(downloadable) = downloadable {
+                downloadables.insert(downloadable);
+            }
         });
 
+        let guard = downloadables.set.guard();
         assert_eq!(
-            downloadables.list,
-            vec![
-                Downloadable {
+            downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::from([
+                &Downloadable {
                     url: "https://gamediary.dev/0.png".to_string(),
                     path: PathBuf::from("media/A.png"),
                 },
-                Downloadable {
+                &Downloadable {
                     url: "https://gamediary.dev/3.png".to_string(),
                     path: PathBuf::from("media/D.png"),
                 },
-                Downloadable {
+                &Downloadable {
                     url: "https://gamediary.dev/6.png".to_string(),
                     path: PathBuf::from("media/G.png"),
                 },
-                Downloadable {
+                &Downloadable {
                     url: "https://gamediary.dev/9.png".to_string(),
                     path: PathBuf::from("media/J.png"),
                 },
-            ]
+            ])
         );
     }
 }
