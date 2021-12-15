@@ -30,6 +30,8 @@ pub struct HtmlRenderer<'l> {
     /// A map from page ids to URL paths to replace page ids in links with the corresponding URL
     /// path
     pub link_map: &'l HashMap<NotionId, String>,
+    /// A list of media to download for rendering
+    pub downloadables: &'l Downloadables,
 }
 
 enum BlockCoalition<'a> {
@@ -85,9 +87,8 @@ pub trait Title {
 }
 
 impl<'l> HtmlRenderer<'l> {
-    pub fn render_html(&self, blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
-        let mut downloadables = Downloadables::new();
-        let rendered_blocks = downloadables.extract(self.render_blocks(&blocks, None, false));
+    pub fn render_html(&self, blocks: Vec<Block>, head: String) -> Result<Markup> {
+        let rendered_blocks = self.render_blocks(&blocks, None, false);
 
         let markup = html! {
             (DOCTYPE)
@@ -109,25 +110,21 @@ impl<'l> HtmlRenderer<'l> {
             }
         };
 
-        Ok((markup, downloadables))
+        Ok(markup)
     }
 
-    pub fn render_page<P: Title>(&self, page: &Page<P>) -> Result<(Markup, Downloadables)> {
-        let mut downloadables = Downloadables::new();
-        let rendered_blocks = downloadables.extract(self.render_blocks(&page.children, None, true));
+    pub fn render_page<P: Title>(&self, page: &Page<P>) -> Result<Markup> {
+        let rendered_blocks = self.render_blocks(&page.children, None, true);
 
-        Ok((
-            html! {
-                h1 id=(page.id) {
-                    (render_heading_link_icon(self.heading_anchors, page.id))
-                    (self.render_rich_text(page.properties.title()))
-                }
-                @for block in rendered_blocks {
-                    (block?)
-                }
-            },
-            downloadables,
-        ))
+        Ok(html! {
+            h1 id=(page.id) {
+                (render_heading_link_icon(self.heading_anchors, page.id))
+                (self.render_rich_text(page.properties.title()))
+            }
+            @for block in rendered_blocks {
+                (block?)
+            }
+        })
     }
 
     /// Render a group of blocks into HTML
@@ -136,7 +133,7 @@ impl<'l> HtmlRenderer<'l> {
         blocks: I,
         class: Option<&'a str>,
         downgrade_headings: bool,
-    ) -> impl Iterator<Item = Result<(Markup, Downloadables)>> + 'a
+    ) -> impl Iterator<Item = Result<Markup>> + 'a
     where
         I: IntoIterator<Item = &'a Block> + 'a,
     {
@@ -158,15 +155,13 @@ impl<'l> HtmlRenderer<'l> {
         list: Vec<&Block>,
         class: Option<&str>,
         downgrade_headings: bool,
-    ) -> Result<(Markup, Downloadables)> {
-        let mut downloadables = Downloadables::new();
-
+    ) -> Result<Markup> {
         let list = list.into_iter().map(|item| {
             if let (Some(text), Some(children)) = (item.get_text(), item.get_children()) {
                 Ok::<_, anyhow::Error>(html! {
                     li id=(item.id) {
                         (self.render_rich_text(text))
-                        @for block in downloadables.extract(self.render_blocks(children, class, downgrade_headings)) {
+                        @for block in self.render_blocks(children, class, downgrade_headings) {
                             (block?)
                         }
                     }
@@ -176,7 +171,7 @@ impl<'l> HtmlRenderer<'l> {
             }
         });
 
-        let result = match ty {
+        match ty {
             ListType::Bulleted => Ok(html! {
                 ul class=[class] {
                     @for item in list {
@@ -192,9 +187,7 @@ impl<'l> HtmlRenderer<'l> {
                 }
             }),
             _ => todo!(),
-        };
-
-        result.map(|markup| (markup, downloadables))
+        }
     }
 
     fn render_block(
@@ -202,10 +195,8 @@ impl<'l> HtmlRenderer<'l> {
         block: &Block,
         class: Option<&str>,
         downgrade_headings: bool,
-    ) -> Result<(Markup, Downloadables)> {
-        let mut downloadables = Downloadables::new();
-
-        let result = match &block.ty {
+    ) -> Result<Markup> {
+        match &block.ty {
             BlockType::HeadingOne { text } => Ok(if !downgrade_headings {
                 html! {
                     h1 id=(block.id) class=[class] {
@@ -269,7 +260,7 @@ impl<'l> HtmlRenderer<'l> {
                             p {
                                 (self.render_rich_text(text))
                             }
-                            @for child in downloadables.extract(self.render_blocks(children, Some("indent"), downgrade_headings)) {
+                            @for child in self.render_blocks(children, Some("indent"), downgrade_headings) {
                                 (child?)
                             }
                         }
@@ -279,7 +270,7 @@ impl<'l> HtmlRenderer<'l> {
             BlockType::Quote { text, children } => Ok(html! {
                 blockquote id=(block.id) {
                     (self.render_rich_text(text))
-                    @for child in downloadables.extract(self.render_blocks(children, Some("indent"), downgrade_headings)) {
+                    @for child in self.render_blocks(children, Some("indent"), downgrade_headings) {
                         (child?)
                     }
                 }
@@ -298,7 +289,7 @@ impl<'l> HtmlRenderer<'l> {
                 ul {
                     li id=(block.id) {
                         (self.render_rich_text(text))
-                        @for child in downloadables.extract(self.render_blocks(children, Some("indent"), downgrade_headings)) {
+                        @for child in self.render_blocks(children, Some("indent"), downgrade_headings) {
                             (child?)
                         }
                     }
@@ -308,7 +299,7 @@ impl<'l> HtmlRenderer<'l> {
                 ol {
                     li id=(block.id) {
                         (self.render_rich_text(text))
-                        @for child in downloadables.extract(self.render_blocks(children, Some("indent"), downgrade_headings)) {
+                        @for child in self.render_blocks(children, Some("indent"), downgrade_headings) {
                             (child?)
                         }
                     }
@@ -341,7 +332,7 @@ impl<'l> HtmlRenderer<'l> {
                     }
                 };
 
-                downloadables.list.push(Downloadable::new(url, path));
+                self.downloadables.insert(Downloadable::new(url, path));
 
                 Ok(markup)
             }
@@ -373,7 +364,7 @@ impl<'l> HtmlRenderer<'l> {
                             img src=(src);
                         };
 
-                        downloadables.list.push(Downloadable::new(url, path));
+                        self.downloadables.insert(Downloadable::new(url, path));
 
                         markup
                     }
@@ -388,7 +379,7 @@ impl<'l> HtmlRenderer<'l> {
                             p {
                                 (self.render_rich_text(text))
                             }
-                            @for child in downloadables.extract(self.render_blocks(children, Some("indent"), downgrade_headings)) {
+                            @for child in self.render_blocks(children, Some("indent"), downgrade_headings) {
                                 (child?)
                             }
                         }
@@ -400,9 +391,7 @@ impl<'l> HtmlRenderer<'l> {
                     "UNSUPPORTED FEATURE: " (block.name())
                 }
             }),
-        };
-
-        result.map(|markup| (markup, downloadables))
+        }
     }
 
     fn render_rich_text(&self, rich_text: &[RichText]) -> Markup {
@@ -636,7 +625,7 @@ fn render_link_icon() -> Markup {
 mod tests {
     use super::{HtmlRenderer, RichTextRenderer, Title};
     use crate::{
-        download::Downloadable,
+        download::{Downloadable, Downloadables},
         options::HeadingAnchors,
         response::{
             properties::TitleProperty, Annotations, Block, BlockType, Color, Emoji, EmojiOrFile,
@@ -659,6 +648,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
 
         let block = Block {
@@ -671,15 +661,23 @@ mod tests {
             ty: BlockType::TableOfContents {},
         };
 
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
             r#"<h4 id="eb39a20e10364469b750a9df8f4f18df" style="color: red;">UNSUPPORTED FEATURE: table_of_contents</h4>"#
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
     }
 
     #[test]
@@ -688,6 +686,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
 
         let block = Block {
@@ -709,15 +708,23 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
             r#"<h1 id="8cac60c274b9408cacbd0895cfd7b7f8">Cool test</h1>"#
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
 
         let block = Block {
             object: "block".to_string(),
@@ -738,15 +745,23 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
             r#"<h2 id="8042c69c49e7420ba49839b9d61c43d0">Cooler test</h2>"#
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
 
         let block = Block {
             object: "block".to_string(),
@@ -767,15 +782,23 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
             r#"<h3 id="7f54fffa61084a49b8e9587afe7ac08f">Coolest test</h3>"#
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
     }
 
     #[test]
@@ -784,6 +807,7 @@ mod tests {
             heading_anchors: HeadingAnchors::Icon,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
 
         let block = Block {
@@ -805,15 +829,23 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
             r##"<h1 id="8cac60c274b9408cacbd0895cfd7b7f8"><a href="#8cac60c274b9408cacbd0895cfd7b7f8"><svg stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 11.9976C14 9.5059 11.683 7 8.85714 7C8.52241 7 7.41904 7.00001 7.14286 7.00001C4.30254 7.00001 2 9.23752 2 11.9976C2 14.376 3.70973 16.3664 6 16.8714C6.36756 16.9525 6.75006 16.9952 7.14286 16.9952" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11.9976C10 14.4893 12.317 16.9952 15.1429 16.9952C15.4776 16.9952 16.581 16.9952 16.8571 16.9952C19.6975 16.9952 22 14.7577 22 11.9976C22 9.6192 20.2903 7.62884 18 7.12383C17.6324 7.04278 17.2499 6.99999 16.8571 6.99999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></a>Cool test</h1>"##
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
 
         let block = Block {
             object: "block".to_string(),
@@ -834,15 +866,23 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
             r##"<h2 id="8042c69c49e7420ba49839b9d61c43d0"><a href="#8042c69c49e7420ba49839b9d61c43d0"><svg stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 11.9976C14 9.5059 11.683 7 8.85714 7C8.52241 7 7.41904 7.00001 7.14286 7.00001C4.30254 7.00001 2 9.23752 2 11.9976C2 14.376 3.70973 16.3664 6 16.8714C6.36756 16.9525 6.75006 16.9952 7.14286 16.9952" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11.9976C10 14.4893 12.317 16.9952 15.1429 16.9952C15.4776 16.9952 16.581 16.9952 16.8571 16.9952C19.6975 16.9952 22 14.7577 22 11.9976C22 9.6192 20.2903 7.62884 18 7.12383C17.6324 7.04278 17.2499 6.99999 16.8571 6.99999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></a>Cooler test</h2>"##
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
 
         let block = Block {
             object: "block".to_string(),
@@ -863,15 +903,23 @@ mod tests {
                 }],
             },
         };
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
             r##"<h3 id="7f54fffa61084a49b8e9587afe7ac08f"><a href="#7f54fffa61084a49b8e9587afe7ac08f"><svg stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 11.9976C14 9.5059 11.683 7 8.85714 7C8.52241 7 7.41904 7.00001 7.14286 7.00001C4.30254 7.00001 2 9.23752 2 11.9976C2 14.376 3.70973 16.3664 6 16.8714C6.36756 16.9525 6.75006 16.9952 7.14286 16.9952" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11.9976C10 14.4893 12.317 16.9952 15.1429 16.9952C15.4776 16.9952 16.581 16.9952 16.8571 16.9952C19.6975 16.9952 22 14.7577 22 11.9976C22 9.6192 20.2903 7.62884 18 7.12383C17.6324 7.04278 17.2499 6.99999 16.8571 6.99999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></a>Coolest test</h3>"##
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
     }
 
     #[test]
@@ -880,6 +928,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
 
         let block = Block {
@@ -892,12 +941,20 @@ mod tests {
             ty: BlockType::Divider {},
         };
 
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(markup, r#"<hr id="5e845049255f423296fd6f20449be0bc">"#);
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
     }
 
     #[test]
@@ -906,6 +963,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
 
         let block = Block {
@@ -928,15 +986,23 @@ mod tests {
                 children: vec![],
             },
         };
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
             r#"<p id="64740ca63a0646948845401688334ef5">Cool test</p>"#
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
 
         let block = Block {
             object: "block".to_string(),
@@ -1007,15 +1073,23 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
             r#"<div id="4f2efd79ae9a4684827c6b69743d6c5d"><p>Or you can just leave an empty line in between if you want it to leave extra breathing room.</p><div id="4fb9dd792fc745b1b3a28efae49992ed" class="indent"><p>You can also create these rather interesting nested paragraphs</p><p id="817c0ca1721a4565ac54eedbbe471f0b" class="indent">Possibly more than once too!</p></div></div>"#
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
     }
 
     #[test]
@@ -1024,6 +1098,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
 
         let block = Block {
@@ -1049,16 +1124,24 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
             r#"<blockquote id="191b3d44a37f40c4bb4f3477359022fd">If you think you can do a thing or think you can’t do a thing, you’re right.
 —Henry Ford</blockquote>"#
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
     }
 
     #[test]
@@ -1067,6 +1150,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
 
         let block = Block {
@@ -1092,9 +1176,9 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
@@ -1119,7 +1203,15 @@ mod tests {
                 + "\n"
                 + r#"</code></pre>"#
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
     }
 
     #[test]
@@ -1128,6 +1220,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
 
         let block = Block {
@@ -1232,15 +1325,23 @@ mod tests {
             },
         };
 
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_block(&block, None, false)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
             markup,
             r#"<ul><li id="844b3fdf56884f6c91e897b4f0e436cd">This is some cool list<ol><li id="c3e9c471d4b347dcab6a6ecd4dda161a">It can even contain other lists inside of it<ul><li id="55d7294249f649f98adee3d049f682e5">And those lists can contain OTHER LISTS!<ol class="indent"><li id="100116e20a4749038b794ac9cc3a7870">Listception</li><li id="c1a5555a8359499980dc10241d262071">Listception</li></ol></li></ul></li></ol></li></ul>"#
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
     }
 
     #[test]
@@ -1249,6 +1350,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
 
         let blocks = [
@@ -1293,19 +1395,11 @@ mod tests {
                     }
                 ];
 
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_blocks(&blocks, None, false)
             .map(|result| result.unwrap())
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
-            .fold(
-                (Vec::new(), Vec::new()),
-                |(mut markups, mut downloadables), (markup, downloadable)| {
-                    markups.push(markup);
-                    downloadables.extend(downloadable);
-
-                    (markups, downloadables)
-                },
-            );
+            .map(|markup| markup.into_string())
+            .collect::<Vec<_>>();
         assert_eq!(
             markup,
             vec![
@@ -1313,18 +1407,23 @@ mod tests {
                 r#"<img id="d1e5e2c543514b8e83a320ef532967a7" src="media/d1e5e2c543514b8e83a320ef532967a7">"#
             ]
         );
+        let guard = renderer.downloadables.set.guard();
         assert_eq!(
-            downloadables,
-            vec![
-                Downloadable::new(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::from([
+                &Downloadable::new(
                     "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/efbb73c3-2df3-4365-bcf3-cc9ece431127/circle.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211121%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211121T134120Z&X-Amz-Expires=3600&X-Amz-Signature=9ea689335e9054f55c794c7609f9c9c057c80484cd06eaf9dff9641d92e923c8&X-Amz-SignedHeaders=host&x-id=GetObject".to_string(),
                     PathBuf::from("media/5ac94d7e25de4fa3a7810a43aac9d5c4.png"),
                 ),
-                Downloadable::new(
+                &Downloadable::new(
                     "https://mathspy.me/random-file".to_string(),
                     PathBuf::from("media/d1e5e2c543514b8e83a320ef532967a7"),
                 ),
-            ]
+            ])
         );
     }
 
@@ -1334,6 +1433,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
 
         let blocks = [
@@ -1409,19 +1509,11 @@ mod tests {
             },
         ];
 
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_blocks(&blocks, None, false)
             .map(|result| result.unwrap())
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
-            .fold(
-                (Vec::new(), Vec::new()),
-                |(mut markups, mut downloadables), (markup, downloadable)| {
-                    markups.push(markup);
-                    downloadables.extend(downloadable);
-
-                    (markups, downloadables)
-                },
-            );
+            .map(|markup| markup.into_string())
+            .collect::<Vec<_>>();
 
         assert_eq!(
             markup,
@@ -1431,18 +1523,23 @@ mod tests {
                 r#"<aside id="66ea73701a3b4f4eada53be2f7e6ef73"><div><img src="media/66ea73701a3b4f4eada53be2f7e6ef73"></div><div><p>Some really spooky callout.</p></div></aside>"#
             ]
         );
+        let guard = renderer.downloadables.set.guard();
         assert_eq!(
-            downloadables,
-            vec![
-                Downloadable::new(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::from([
+                &Downloadable::new(
                     "https://example.com/hehe.gif".to_string(),
                     PathBuf::from("media/28c719a398454f089e871fe78e50e92b.gif"),
                 ),
-                Downloadable::new(
+                &Downloadable::new(
                     "https://example.com".to_string(),
                     PathBuf::from("media/66ea73701a3b4f4eada53be2f7e6ef73"),
                 ),
-            ]
+            ])
         );
     }
 
@@ -1452,6 +1549,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::new(),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
         let renderer_with_link_map = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
@@ -1460,11 +1558,13 @@ mod tests {
                 "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                 "/path/to/page".to_string(),
             )]),
+            downloadables: &Downloadables::new(),
         };
         let renderer_with_pages = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
         let text = RichText {
             href: None,
@@ -1722,6 +1822,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
         let text = RichText {
             href: None,
@@ -1754,6 +1855,7 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::from(["ac3fb543001f4be5a25e4978abd05b1d".parse().unwrap()]),
             link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
         };
         let page = Page {
             object: "page".to_string(),
@@ -1800,15 +1902,23 @@ mod tests {
             }],
         };
 
-        let (markup, downloadables) = renderer
+        let markup = renderer
             .render_page(&page)
-            .map(|(markup, downloadables)| (markup.into_string(), downloadables.list))
+            .map(|markup| markup.into_string())
             .unwrap();
 
         assert_eq!(
             markup,
             r#"<h1 id="ac3fb543001f4be5a25e4978abd05b1d">Day 1: Down the rabbit hole we go</h1><h2 id="8cac60c274b9408cacbd0895cfd7b7f8">Cool test</h2>"#
         );
-        assert_eq!(downloadables, vec![]);
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
     }
 }
