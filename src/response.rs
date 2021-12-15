@@ -199,6 +199,24 @@ pub struct Time {
     pub parsed: Either<Date, OffsetDateTime>,
 }
 
+impl PartialEq<Date> for Time {
+    fn eq(&self, other: &Date) -> bool {
+        match self.parsed {
+            Either::Left(date) => date.eq(other),
+            Either::Right(datetime) => datetime.date().eq(other),
+        }
+    }
+}
+
+impl PartialOrd<Date> for Time {
+    fn partial_cmp(&self, other: &Date) -> Option<std::cmp::Ordering> {
+        match self.parsed {
+            Either::Left(date) => date.partial_cmp(other),
+            Either::Right(datetime) => datetime.date().partial_cmp(other),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum RichTextMentionType {
