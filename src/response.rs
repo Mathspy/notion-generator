@@ -52,6 +52,10 @@ pub struct RichText {
     pub ty: RichTextType,
 }
 
+pub trait PlainText {
+    fn plain_text(&self) -> String;
+}
+
 mod deserializers {
     use super::{RichTextLink, Time};
     use either::Either;
