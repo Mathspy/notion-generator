@@ -17,7 +17,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub struct HtmlRenderer<'l> {
+pub struct HtmlRenderer<'html> {
     pub heading_anchors: HeadingAnchors,
     /// A list of pages that will be rendered together, used to figure out whether to use fragment
     /// part of links alone (#block_id) or to use the full canonical link (/page_id#block_id)
@@ -29,9 +29,9 @@ pub struct HtmlRenderer<'l> {
     pub current_pages: HashSet<NotionId>,
     /// A map from page ids to URL paths to replace page ids in links with the corresponding URL
     /// path
-    pub link_map: &'l HashMap<NotionId, String>,
+    pub link_map: &'html HashMap<NotionId, String>,
     /// A list of media to download for rendering
-    pub downloadables: &'l Downloadables,
+    pub downloadables: &'html Downloadables,
 }
 
 enum BlockCoalition<'a> {
@@ -86,7 +86,7 @@ pub trait Title {
     fn title(&self) -> &[RichText];
 }
 
-impl<'l> HtmlRenderer<'l> {
+impl<'html> HtmlRenderer<'html> {
     pub fn render_html(&self, blocks: Vec<Block>, head: String) -> Result<Markup> {
         let rendered_blocks = self.render_blocks(&blocks, None, false);
 
