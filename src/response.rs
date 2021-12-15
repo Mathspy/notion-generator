@@ -1,4 +1,5 @@
 use either::Either;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use time::{Date, OffsetDateTime};
 
@@ -54,6 +55,12 @@ pub struct RichText {
 
 pub trait PlainText {
     fn plain_text(&self) -> String;
+}
+
+impl PlainText for &[RichText] {
+    fn plain_text(&self) -> String {
+        self.iter().map(|rich_text| &rich_text.plain_text).join("")
+    }
 }
 
 mod deserializers {
