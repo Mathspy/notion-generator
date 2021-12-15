@@ -3,14 +3,38 @@ use futures_util::stream::{FuturesUnordered, TryStreamExt};
 use itertools::Itertools;
 use maud::Markup;
 use reqwest::Client;
-use std::path::{Path, PathBuf};
+use std::{
+    hash::{Hash, Hasher},
+    path::{Path, PathBuf},
+};
 
 pub const FILES_DIR: &str = "media";
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, Eq)]
 pub struct Downloadable {
     url: String,
     path: PathBuf,
+}
+
+impl PartialEq for Downloadable {
+    fn eq(&self, other: &Self) -> bool {
+        self.path.eq(&other.path)
+    }
+}
+impl PartialOrd for Downloadable {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.path.partial_cmp(&other.path)
+    }
+}
+impl Ord for Downloadable {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.path.cmp(&other.path)
+    }
+}
+impl Hash for Downloadable {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
+    }
 }
 
 impl Downloadable {
