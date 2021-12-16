@@ -9,7 +9,7 @@ use clap::Parser;
 use futures_util::stream::{self, FuturesOrdered, StreamExt};
 use render::HtmlRenderer;
 use reqwest::Client;
-use response::{Block, Error, List};
+use response::{Block, Error, List, NotionId};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
@@ -21,7 +21,7 @@ use std::{
 #[async_recursion]
 async fn get_block_children(
     client: &Client,
-    id: &str,
+    id: NotionId,
     cursor: Option<String>,
     auth_token: &str,
 ) -> Result<Vec<Result<Block>>> {
@@ -72,7 +72,7 @@ async fn get_block_children(
                     return Ok::<Block, anyhow::Error>(block);
                 }
 
-                let children = get_block_children(client, &block.id, None, auth_token).await?;
+                let children = get_block_children(client, block.id, None, auth_token).await?;
 
                 Ok(block.replace_children(
                     children
@@ -122,7 +122,7 @@ impl FromStr for HeadingAnchors {
     }
 }
 
-struct LinkMap(HashMap<String, String>);
+struct LinkMap(HashMap<NotionId, String>);
 
 #[derive(Debug)]
 enum LinkMapError {
@@ -155,10 +155,7 @@ impl FromStr for LinkMap {
                     None => return Err(LinkMapError::MissingPageId),
                 };
 
-                let page_id = page_id.replace("-", "");
-                if page_id.len() != 32 {
-                    return Err(LinkMapError::InvalidPageId);
-                }
+                let page_id = page_id.parse().map_err(|_| LinkMapError::InvalidPageId)?;
 
                 let path = match entry.next() {
                     Some(path) => path,
@@ -210,8 +207,13 @@ async fn main() -> Result<()> {
         .build()
         .context("Failed to build HTTP client")?;
 
+    let document_id = opts
+        .document_id
+        .parse()
+        .with_context(|| format!("{} is not a valid Notion document ID", opts.document_id))?;
+
     // TODO: We still need to get the title from requesting the page's own block
-    let blocks = get_block_children(&client, &opts.document_id, None, &auth_token)
+    let blocks = get_block_children(&client, document_id, None, &auth_token)
         .await
         .context("Failed to get block children")?
         .into_iter()
@@ -224,13 +226,10 @@ async fn main() -> Result<()> {
     )
     .context("Failed to parse head partial as utf8")?;
     let mut current_pages = HashSet::new();
-    current_pages.extend(
-        std::iter::once(opts.document_id.replace("-", "")).chain(
-            opts.current_pages
-                .into_iter()
-                .map(|page_id| page_id.replace("-", "")),
-        ),
-    );
+    current_pages.insert(document_id);
+    for current_page in opts.current_pages {
+        current_pages.insert(current_page.parse()?);
+    }
     let renderer = HtmlRenderer {
         heading_anchors: opts.heading_anchors,
         current_pages,

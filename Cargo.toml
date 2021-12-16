@@ -26,6 +26,7 @@ tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
 tree-sitter = { version = "0.20" }
 tree-sitter-highlight = { version = "0.20" }
 tree-sitter-rust = { version = "0.20" }
+uuid = { version = "0.8", features = ["serde"] }
 
 [dev-dependencies]
 pretty_assertions = { version = "1" }

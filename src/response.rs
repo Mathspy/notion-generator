@@ -1,7 +1,27 @@
 use either::Either;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use std::{fmt, str::FromStr};
 use time::{Date, OffsetDateTime};
+use uuid::Uuid;
+
+#[derive(Debug, Deserialize, Clone, Copy, Eq, PartialEq, Hash)]
+#[repr(transparent)]
+#[serde(transparent)]
+pub struct NotionId(Uuid);
+
+impl FromStr for NotionId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(NotionId(Uuid::parse_str(s)?))
+    }
+}
+impl fmt::Display for NotionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.to_simple_ref().fmt(f)
+    }
+}
 
 // ------------------ NOTION ERROR OBJECT ------------------
 // As defined in https://developers.notion.com/reference/errors
@@ -157,7 +177,9 @@ mod deserializers {
             };
 
             Ok(Some(RichTextLink::Internal {
-                page: page.to_string(),
+                page: page.parse().map_err(|_| {
+                    D::Error::invalid_value(Unexpected::Str(page), &"a Notion page UUID")
+                })?,
                 block: parts.next().map(str::to_string),
             }))
         } else {
@@ -187,8 +209,13 @@ pub enum RichTextType {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub enum RichTextLink {
-    Internal { page: String, block: Option<String> },
-    External { url: String },
+    Internal {
+        page: NotionId,
+        block: Option<String>,
+    },
+    External {
+        url: String,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -222,17 +249,17 @@ impl PartialOrd<Date> for Time {
 pub enum RichTextMentionType {
     User {
         // TODO: assert!(object == "user");
-        id: String,
+        id: NotionId,
         name: String,
         avatar_url: String,
         #[serde(flatten)]
         ty: UserType,
     },
     Page {
-        id: String,
+        id: NotionId,
     },
     Database {
-        id: String,
+        id: NotionId,
     },
     Date {
         #[serde(deserialize_with = "deserializers::time")]
@@ -297,7 +324,7 @@ impl Default for Color {
 pub struct Block {
     // TODO: assert!(list.object == "list");
     pub object: String,
-    pub id: String,
+    pub id: NotionId,
     pub created_time: String,
     pub last_edited_time: String,
     pub has_children: bool,
@@ -842,7 +869,7 @@ mod tests {
                 ty: RichTextType::Text {
                     content: "¹".to_string(),
                     link: Some(RichTextLink::Internal {
-                        page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                        page: "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                         block: Some("48cb69650f584e60be8159e9f8e07a8a".to_string()),
                     })
                 },
@@ -880,7 +907,7 @@ mod tests {
                 ty: RichTextType::Text {
                     content: "A less watered down test".to_string(),
                     link: Some(RichTextLink::Internal {
-                        page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                        page: "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                         block: None,
                     })
                 },
@@ -1012,7 +1039,7 @@ mod tests {
                 annotations: Default::default(),
                 ty: RichTextType::Mention {
                     mention: RichTextMentionType::User {
-                        id: "8cac60c2-74b9-408c-acbd-08fd7f8b795c".to_string(),
+                        id: "8cac60c274b9408cacbd08fd7f8b795c".parse().unwrap(),
                         avatar_url: "https://mathspy.me/mathy.png".to_string(),
                         name: "Mathy".to_string(),
                         ty: UserType::Person {
@@ -1053,7 +1080,7 @@ mod tests {
                 annotations: Default::default(),
                 ty: RichTextType::Mention {
                     mention: RichTextMentionType::Page {
-                        id: "6e0eb85f-6047-4efb-a130-4f92d2abfa2c".to_string(),
+                        id: "6e0eb85f60474efba1304f92d2abfa2c".parse().unwrap(),
                     },
                 },
             }
@@ -1089,7 +1116,7 @@ mod tests {
                 annotations: Default::default(),
                 ty: RichTextType::Mention {
                     mention: RichTextMentionType::Database {
-                        id: "332b7b05-2ded-4955-bc77-60851242836a".to_string(),
+                        id: "332b7b052ded4955bc7760851242836a".parse().unwrap(),
                     },
                 },
             }
@@ -1133,7 +1160,7 @@ mod tests {
             serde_json::from_str::<Block>(json).unwrap(),
             Block {
                 object: "block".to_string(),
-                id: "64740ca6-3a06-4694-8845-401688334ef5".to_string(),
+                id: "64740ca63a0646948845401688334ef5".parse().unwrap(),
                 created_time: "2021-11-13T17:35:00.000Z".to_string(),
                 last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
                 has_children: false,
@@ -1265,7 +1292,7 @@ mod tests {
                 results: vec![
                     Block {
                         object: "block".to_string(),
-                        id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".to_string(),
+                        id: "8cac60c274b9408cacbd0895cfd7b7f8".parse().unwrap(),
                         created_time: "2021-11-13T17:35:00.000Z".to_string(),
                         last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
                         has_children: false,
@@ -1284,7 +1311,7 @@ mod tests {
                     },
                     Block {
                         object: "block".to_string(),
-                        id: "8042c69c-49e7-420b-a498-39b9d61c43d0".to_string(),
+                        id: "8042c69c49e7420ba49839b9d61c43d0".parse().unwrap(),
                         created_time: "2021-11-13T17:35:00.000Z".to_string(),
                         last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
                         has_children: false,
@@ -1303,7 +1330,7 @@ mod tests {
                     },
                     Block {
                         object: "block".to_string(),
-                        id: "7f54fffa-6108-4a49-b8e9-587afe7ac08f".to_string(),
+                        id: "7f54fffa61084a49b8e9587afe7ac08f".parse().unwrap(),
                         created_time: "2021-11-13T17:35:00.000Z".to_string(),
                         last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
                         has_children: false,
@@ -1451,7 +1478,7 @@ mod tests {
                 results: vec![
                     Block {
                         object: "block".to_string(),
-                        id: "b7363fed-d7cd-4aba-a86f-f51763f4ce91".to_string(),
+                        id: "b7363fedd7cd4abaa86ff51763f4ce91".parse().unwrap(),
                         created_time: "2021-11-13T17:50:00.000Z".to_string(),
                         last_edited_time: "2021-11-13T17:50:00.000Z".to_string(),
                         has_children: false,
@@ -1474,7 +1501,7 @@ mod tests {
                     },
                     Block {
                         object: "block".to_string(),
-                        id: "28c719a3-9845-4f08-9e87-1fe78e50e92b".to_string(),
+                        id: "28c719a398454f089e871fe78e50e92b".parse().unwrap(),
                         created_time: "2021-11-13T17:50:00.000Z".to_string(),
                         last_edited_time: "2021-11-13T17:50:00.000Z".to_string(),
                         has_children: false,
@@ -1498,7 +1525,7 @@ mod tests {
                     },
                     Block {
                         object: "block".to_string(),
-                        id: "66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73".to_string(),
+                        id: "66ea73701a3b4f4eada53be2f7e6ef73".parse().unwrap(),
                         created_time: "2021-11-13T17:50:00.000Z".to_string(),
                         last_edited_time: "2021-11-13T17:50:00.000Z".to_string(),
                         has_children: false,
@@ -1565,7 +1592,7 @@ mod tests {
             serde_json::from_str::<Block>(json).unwrap(),
             Block {
                 object: "block".to_string(),
-                id: "191b3d44-a37f-40c4-bb4f-3477359022fd".to_string(),
+                id: "191b3d44a37f40c4bb4f3477359022fd".parse().unwrap(),
                 created_time: "2021-11-13T18:58:00.000Z".to_string(),
                 last_edited_time: "2021-11-13T19:00:00.000Z".to_string(),
                 has_children: false,
@@ -1746,7 +1773,7 @@ mod tests {
             serde_json::from_str::<Block>(json).unwrap(),
             Block {
                 object: "block".to_string(),
-                id: "844b3fdf-5688-4f6c-91e8-97b4f0e436cd".to_string(),
+                id: "844b3fdf56884f6c91e897b4f0e436cd".parse().unwrap(),
                 created_time: "2021-11-13T19:02:00.000Z".to_string(),
                 last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
                 has_children: true,
@@ -1763,7 +1790,7 @@ mod tests {
                     },],
                     children: vec![Block {
                         object: "block".to_string(),
-                        id: "c3e9c471-d4b3-47dc-ab6a-6ecd4dda161a".to_string(),
+                        id: "c3e9c471d4b347dcab6a6ecd4dda161a".parse().unwrap(),
                         created_time: "2021-11-13T19:02:00.000Z".to_string(),
                         last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
                         has_children: true,
@@ -1782,7 +1809,7 @@ mod tests {
                             },],
                             children: vec![Block {
                                 object: "block".to_string(),
-                                id: "55d72942-49f6-49f9-8ade-e3d049f682e5".to_string(),
+                                id: "55d7294249f649f98adee3d049f682e5".parse().unwrap(),
                                 created_time: "2021-11-13T19:03:00.000Z".to_string(),
                                 last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
                                 has_children: true,
@@ -1802,7 +1829,7 @@ mod tests {
                                     children: vec![
                                         Block {
                                             object: "block".to_string(),
-                                            id: "100116e2-0a47-4903-8b79-4ac9cc3a7870".to_string(),
+                                            id: "100116e20a4749038b794ac9cc3a7870".parse().unwrap(),
                                             created_time: "2021-11-13T19:03:00.000Z".to_string(),
                                             last_edited_time: "2021-11-13T19:03:00.000Z"
                                                 .to_string(),
@@ -1823,7 +1850,7 @@ mod tests {
                                         },
                                         Block {
                                             object: "block".to_string(),
-                                            id: "c1a5555a-8359-4999-80dc-10241d262071".to_string(),
+                                            id: "c1a5555a8359499980dc10241d262071".parse().unwrap(),
                                             created_time: "2021-11-13T19:03:00.000Z".to_string(),
                                             last_edited_time: "2021-11-13T19:03:00.000Z"
                                                 .to_string(),
@@ -1892,7 +1919,7 @@ mod tests {
             serde_json::from_str::<Block>(json).unwrap(),
             Block {
                 object: "block".to_string(),
-                id: "099286a5-f878-4773-a402-98711effacf2".to_string(),
+                id: "099286a5f8784773a40298711effacf2".parse().unwrap(),
                 created_time: "2021-11-13T19:01:00.000Z".to_string(),
                 last_edited_time: "2021-11-13T19:01:00.000Z".to_string(),
                 has_children: false,
@@ -1954,7 +1981,7 @@ mod tests {
             serde_json::from_str::<Block>(json).unwrap(),
             Block {
                 object: "block".to_string(),
-                id: "bf0128fd-3b85-4d85-aada-e500dcbcda35".to_string(),
+                id: "bf0128fd3b854d85aadae500dcbcda35".parse().unwrap(),
                 created_time: "2021-11-13T17:35:00.000Z".to_string(),
                 last_edited_time: "2021-11-13T17:38:00.000Z".to_string(),
                 has_children: false,
@@ -2341,7 +2368,7 @@ mod tests {
                 results: vec![
                     Block {
                         object: "block".to_string(),
-                        id: "5ac94d7e-25de-4fa3-a781-0a43aac9d5c4".to_string(),
+                        id: "5ac94d7e25de4fa3a7810a43aac9d5c4".parse().unwrap(),
                         created_time: "2021-11-13T17:35:00.000Z".to_string(),
                         last_edited_time: "2021-11-21T13:39:00.000Z".to_string(),
                         has_children: false,
@@ -2366,7 +2393,7 @@ mod tests {
                     },
                     Block {
                         object: "block".to_string(),
-                        id: "d1e5e2c5-4351-4b8e-83a3-20ef532967a7".to_string(),
+                        id: "d1e5e2c543514b8e83a320ef532967a7".parse().unwrap(),
                         created_time: "2021-11-13T17:35:00.000Z".to_string(),
                         last_edited_time: "2021-11-13T17:35:00.000Z".to_string(),
                         has_children: false,
@@ -2402,7 +2429,7 @@ mod tests {
             serde_json::from_str::<Block>(json).unwrap(),
             Block {
                 object: "block".to_string(),
-                id: "eb39a20e-1036-4469-b750-a9df8f4f18df".to_string(),
+                id: "eb39a20e10364469b750a9df8f4f18df".parse().unwrap(),
                 created_time: "2021-11-13T17:37:00.000Z".to_string(),
                 last_edited_time: "2021-11-13T17:37:00.000Z".to_string(),
                 has_children: false,
@@ -2431,7 +2458,7 @@ mod tests {
             serde_json::from_str::<Block>(json).unwrap(),
             Block {
                 object: "block".to_string(),
-                id: "5e845049-255f-4232-96fd-6f20449be0bc".to_string(),
+                id: "5e845049255f423296fd6f20449be0bc".parse().unwrap(),
                 created_time: "2021-11-15T21:56:00.000Z".to_string(),
                 last_edited_time: "2021-11-15T21:56:00.000Z".to_string(),
                 has_children: false,
