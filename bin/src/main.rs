@@ -1,126 +1,14 @@
-mod download;
-mod highlight;
-mod render;
-mod response;
-
-use anyhow::{bail, Context, Result};
-use async_recursion::async_recursion;
+use anyhow::{Context, Result};
 use clap::Parser;
-use futures_util::stream::{self, FuturesOrdered, StreamExt};
-use render::HtmlRenderer;
-use reqwest::Client;
-use response::{Block, Error, List, NotionId};
+use notion_generator::{
+    client::NotionClient, options::HeadingAnchors, response::NotionId, HtmlRenderer,
+};
 use std::{
     collections::{HashMap, HashSet},
     fmt,
-    ops::Not,
     path::PathBuf,
     str::FromStr,
 };
-
-#[async_recursion]
-async fn get_block_children(
-    client: &Client,
-    id: NotionId,
-    cursor: Option<String>,
-    auth_token: &str,
-) -> Result<Vec<Result<Block>>> {
-    let mut cursor = cursor;
-    let mut output = vec![];
-
-    loop {
-        let response = client
-            .get(format!("https://api.notion.com/v1/blocks/{}/children", id))
-            .header("Notion-Version", "2021-08-16")
-            .bearer_auth(auth_token)
-            .query(&[
-                ("page_size", Some("100")),
-                ("start_cursor", cursor.as_deref()),
-            ])
-            .send()
-            .await
-            .context("Failed to get data for block children")?;
-
-        if response.status().is_success().not() {
-            let error = response
-                .json::<Error>()
-                .await
-                .with_context(|| format!("Failed to parse ERROR JSON for block {} children", id))?;
-
-            bail!(
-                "{}: {}",
-                serde_json::to_value(error.code)
-                    .expect("unreachable")
-                    .as_str()
-                    .context(
-                        "Error code should was not a JSON string? This should be unreachable"
-                    )?,
-                error.message
-            );
-        }
-
-        let list = response
-            .json::<List<Block>>()
-            .await
-            .with_context(|| format!("Failed to parse JSON for block {} children", id))?;
-
-        let requests = list
-            .results
-            .into_iter()
-            .map(|block| async {
-                if !block.has_children {
-                    return Ok::<Block, anyhow::Error>(block);
-                }
-
-                let children = get_block_children(client, block.id, None, auth_token).await?;
-
-                Ok(block.replace_children(
-                    children
-                        .into_iter()
-                        .collect::<Result<Vec<_>>>()
-                        .context("Failed to get sub-block's children")?,
-                ))
-            })
-            .collect::<FuturesOrdered<_>>();
-
-        output.push(requests);
-
-        if list.has_more {
-            cursor = list.next_cursor;
-        } else {
-            return Ok(stream::iter(output).flatten().collect().await);
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum HeadingAnchors {
-    None,
-    Icon,
-}
-
-#[derive(Debug)]
-pub struct HeadingAnchorsParseError;
-impl fmt::Display for HeadingAnchorsParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Expected either `none` or `icon`")?;
-
-        Ok(())
-    }
-}
-impl std::error::Error for HeadingAnchorsParseError {}
-
-impl FromStr for HeadingAnchors {
-    type Err = HeadingAnchorsParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "none" => Ok(HeadingAnchors::None),
-            "icon" => Ok(HeadingAnchors::Icon),
-            _ => Err(HeadingAnchorsParseError),
-        }
-    }
-}
 
 struct LinkMap(HashMap<NotionId, String>);
 
@@ -203,9 +91,7 @@ async fn main() -> Result<()> {
     let opts: Opts = Opts::parse();
     let auth_token = std::env::var("NOTION_TOKEN").context("Missing NOTION_TOKEN env variable")?;
 
-    let client = Client::builder()
-        .build()
-        .context("Failed to build HTTP client")?;
+    let client = NotionClient::new(auth_token);
 
     let document_id = opts
         .document_id
@@ -213,11 +99,10 @@ async fn main() -> Result<()> {
         .with_context(|| format!("{} is not a valid Notion document ID", opts.document_id))?;
 
     // TODO: We still need to get the title from requesting the page's own block
-    let blocks = get_block_children(&client, document_id, None, &auth_token)
+    let blocks = client
+        .get_block_children(document_id)
         .await
-        .context("Failed to get block children")?
-        .into_iter()
-        .collect::<Result<Vec<_>>>()?;
+        .context("Failed to get block children")?;
 
     let head = String::from_utf8(
         tokio::fs::read(opts.head)
@@ -249,7 +134,7 @@ async fn main() -> Result<()> {
 
     tokio::try_join!(
         write_markup,
-        downloadables.download_all(&client, &opts.output)
+        downloadables.download_all(client.client(), &opts.output)
     )?;
 
     Ok(())

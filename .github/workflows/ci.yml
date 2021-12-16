@@ -29,7 +29,7 @@ jobs:
       - uses: Swatinem/rust-cache@v1
 
       - name: Are you happy Clippy?
-        run: cargo clippy -- --deny clippy::all
+        run: cargo clippy --workspace -- --deny clippy::all
 
   test:
     runs-on: ubuntu-latest
@@ -48,7 +48,7 @@ jobs:
       - uses: Swatinem/rust-cache@v1
 
       - name: Running tests
-        run: cargo test
+        run: cargo test --workspace
 
   format:
     runs-on: ubuntu-latest
@@ -63,7 +63,7 @@ jobs:
       - uses: Swatinem/rust-cache@v1
 
       - name: Checking format
-        run: cargo fmt -- --check
+        run: cargo fmt --all -- --check
 
   release:
     name: Create Release
@@ -85,7 +85,7 @@ jobs:
         with:
           command: build
           use-cross: true
-          args: --release
+          args: -p notion-generator-bin --release
 
       - name: Display checksum
         run: shasum -a 256 target/release/notion-generator

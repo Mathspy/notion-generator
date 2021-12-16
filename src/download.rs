@@ -117,3 +117,9 @@ mod tests {
         );
     }
 }
+
+impl Default for Downloadables {
+    fn default() -> Self {
+        Self::new()
+    }
+}
