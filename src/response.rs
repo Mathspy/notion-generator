@@ -308,12 +308,7 @@ pub enum RichTextMentionType {
     Database {
         id: NotionId,
     },
-    Date {
-        #[serde(deserialize_with = "deserializers::time")]
-        start: Time,
-        #[serde(deserialize_with = "deserializers::optional_time")]
-        end: Option<Time>,
-    },
+    Date(NotionDate),
     // TODO(NOTION): link_preview has absolutely no documentation
 }
 
@@ -323,6 +318,14 @@ pub enum UserType {
     Person { email: String },
     // TODO: Add UserType::Bot
     // Bot
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct NotionDate {
+    #[serde(deserialize_with = "deserializers::time")]
+    pub start: Time,
+    #[serde(deserialize_with = "deserializers::optional_time")]
+    pub end: Option<Time>,
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq)]
@@ -741,8 +744,9 @@ pub enum EmojiOrFile {
 #[cfg(test)]
 mod tests {
     use super::{
-        Block, BlockType, Emoji, EmojiOrFile, Error, ErrorCode, File, Language, List, Page,
-        PageParent, RichText, RichTextLink, RichTextMentionType, RichTextType, Time, UserType,
+        Block, BlockType, Emoji, EmojiOrFile, Error, ErrorCode, File, Language, List, NotionDate,
+        Page, PageParent, RichText, RichTextLink, RichTextMentionType, RichTextType, Time,
+        UserType,
     };
     use either::Either;
     use pretty_assertions::assert_eq;
@@ -1033,13 +1037,13 @@ mod tests {
                 href: None,
                 annotations: Default::default(),
                 ty: RichTextType::Mention {
-                    mention: RichTextMentionType::Date {
+                    mention: RichTextMentionType::Date(NotionDate {
                         start: Time {
                             original: "2021-11-07T02:59:00.000-08:00".to_string(),
                             parsed: Either::Right(datetime!(2021-11-07 10:59 UTC))
                         },
                         end: None,
-                    },
+                    }),
                 },
             }
         );
@@ -1074,7 +1078,7 @@ mod tests {
                 href: None,
                 annotations: Default::default(),
                 ty: RichTextType::Mention {
-                    mention: RichTextMentionType::Date {
+                    mention: RichTextMentionType::Date(NotionDate {
                         start: Time {
                             original: "2021-12-05".to_string(),
                             parsed: Either::Left(date!(2021 - 12 - 05))
@@ -1083,7 +1087,7 @@ mod tests {
                             original: "2021-12-06".to_string(),
                             parsed: Either::Left(date!(2021 - 12 - 06))
                         }),
-                    },
+                    }),
                 },
             }
         );
