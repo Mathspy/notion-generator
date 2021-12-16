@@ -74,7 +74,7 @@ impl<'a> std::ops::Add for BlockCoalition<'a> {
 }
 
 impl<'l> HtmlRenderer<'l> {
-    pub fn render_page(&self, blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
+    pub fn render_html(&self, blocks: Vec<Block>, head: String) -> Result<(Markup, Downloadables)> {
         let mut downloadables = Downloadables::new();
         let rendered_blocks = downloadables.extract(self.render_blocks(&blocks, None));
 
@@ -486,9 +486,9 @@ impl<'a> Render for RichTextRenderer<'a> {
                 }
             },
             RichTextType::Mention { mention } => match mention {
-                RichTextMentionType::Date { start, end } => {
-                    append_html_datetime(buffer, start);
-                    if let Some(end) = end {
+                RichTextMentionType::Date(date) => {
+                    append_html_datetime(buffer, &date.start);
+                    if let Some(end) = &date.end {
                         buffer.push_str(" to ");
                         append_html_datetime(buffer, end);
                     }
@@ -574,8 +574,8 @@ mod tests {
         download::Downloadable,
         options::HeadingAnchors,
         response::{
-            Annotations, Block, BlockType, Color, Emoji, EmojiOrFile, File, Language, RichText,
-            RichTextLink, RichTextMentionType, RichTextType, Time,
+            Annotations, Block, BlockType, Color, Emoji, EmojiOrFile, File, Language, NotionDate,
+            RichText, RichTextLink, RichTextMentionType, RichTextType, Time,
         },
     };
     use either::Either;
@@ -1605,13 +1605,14 @@ mod tests {
             href: None,
             annotations: Default::default(),
             ty: RichTextType::Mention {
-                mention: RichTextMentionType::Date {
+                mention: RichTextMentionType::Date(NotionDate {
                     start: Time {
                         original: "2021-11-07T02:59:00.000-08:00".to_string(),
                         parsed: Either::Right(datetime!(2021-11-07 02:59-08:00)),
                     },
                     end: None,
-                },
+                    time_zone: None,
+                }),
             },
         };
 
@@ -1627,7 +1628,7 @@ mod tests {
             href: None,
             annotations: Default::default(),
             ty: RichTextType::Mention {
-                mention: RichTextMentionType::Date {
+                mention: RichTextMentionType::Date(NotionDate {
                     start: Time {
                         original: "2021-12-05".to_string(),
                         parsed: Either::Left(date!(2021 - 12 - 05)),
@@ -1636,7 +1637,8 @@ mod tests {
                         original: "2021-12-06".to_string(),
                         parsed: Either::Left(date!(2021 - 12 - 06)),
                     }),
-                },
+                    time_zone: None,
+                }),
             },
         };
 
