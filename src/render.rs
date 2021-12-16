@@ -1,8 +1,8 @@
 use crate::download::{Downloadable, Downloadables, FILES_DIR};
 use crate::highlight::highlight;
 use crate::response::{
-    Block, BlockType, EmojiOrFile, File, ListType, RichText, RichTextLink, RichTextMentionType,
-    RichTextType, Time,
+    Block, BlockType, EmojiOrFile, File, ListType, NotionId, RichText, RichTextLink,
+    RichTextMentionType, RichTextType, Time,
 };
 use crate::HeadingAnchors;
 use anyhow::{Context, Result};
@@ -131,7 +131,7 @@ impl<'l> HtmlRenderer<'l> {
         let list = list.into_iter().map(|item| {
             if let (Some(text), Some(children)) = (item.get_text(), item.get_children()) {
                 Ok::<_, anyhow::Error>(html! {
-                    li id=(item.id.replace("-", "")) {
+                    li id=(item.id) {
                         (self.render_rich_text(text))
                         @for block in downloadables.extract(self.render_blocks(children, class)) {
                             (block?)
@@ -167,34 +167,32 @@ impl<'l> HtmlRenderer<'l> {
     fn render_block(&self, block: &Block, class: Option<&str>) -> Result<(Markup, Downloadables)> {
         let mut downloadables = Downloadables::new();
 
-        let id = block.id.replace("-", "");
-
         let result = match &block.ty {
             BlockType::HeadingOne { text } => Ok(html! {
-                h1 id=(id) class=[class] {
-                    (render_heading_link_icon(self.heading_anchors, &id))
+                h1 id=(block.id) class=[class] {
+                    (render_heading_link_icon(self.heading_anchors, block.id))
                     (self.render_rich_text(text))
                 }
             }),
             BlockType::HeadingTwo { text } => Ok(html! {
-                h2 id=(id) class=[class] {
-                    (render_heading_link_icon(self.heading_anchors, &id))
+                h2 id=(block.id) class=[class] {
+                    (render_heading_link_icon(self.heading_anchors, block.id))
                     (self.render_rich_text(text))
                 }
             }),
             BlockType::HeadingThree { text } => Ok(html! {
-                h3 id=(id) class=[class] {
-                    (render_heading_link_icon(self.heading_anchors, &id))
+                h3 id=(block.id) class=[class] {
+                    (render_heading_link_icon(self.heading_anchors, block.id))
                     (self.render_rich_text(text))
                 }
             }),
             BlockType::Divider {} => Ok(html! {
-                hr id=(id);
+                hr id=(block.id);
             }),
             BlockType::Paragraph { text, children } => {
                 if children.is_empty() {
                     Ok(html! {
-                        p id=(id) class=[class] {
+                        p id=(block.id) class=[class] {
                             (self.render_rich_text(text))
                         }
                     })
@@ -202,7 +200,7 @@ impl<'l> HtmlRenderer<'l> {
                     eprintln!("WARNING: Rendering a paragraph with children doesn't make sense as far as I am aware at least for the English language.\nThe HTML spec is strictly against it (rendering a <p> inside of a <p> is forbidden) but it's part of Notion's spec so we support it but emit this warning.\n\nRendering a paragraph with children doesn't give any indication to accessibility tools that anything about the children of this paragraph are special so it causes accessibility information loss.\n\nIf you have an actual use case for paragraphs inside of paragraphs please open an issue, I would love to be convinced of reasons to remove this warning or of good HTML ways to render paragraphs inside of paragraphs!");
 
                     Ok(html! {
-                        div id=(id) class=[class] {
+                        div id=(block.id) class=[class] {
                             p {
                                 (self.render_rich_text(text))
                             }
@@ -214,7 +212,7 @@ impl<'l> HtmlRenderer<'l> {
                 }
             }
             BlockType::Quote { text, children } => Ok(html! {
-                blockquote id=(id) {
+                blockquote id=(block.id) {
                     (self.render_rich_text(text))
                     @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                         (child?)
@@ -227,13 +225,13 @@ impl<'l> HtmlRenderer<'l> {
                     .get(0)
                     .context("Code block's RichText is empty")?
                     .plain_text,
-                &id,
+                block.id,
             ),
             // The list items should only be reachable below if a block wasn't coalesced, thus it's
             // a list made of one item so we can safely render a list of one item
             BlockType::BulletedListItem { text, children } => Ok(html! {
                 ul {
-                    li id=(id) {
+                    li id=(block.id) {
                         (self.render_rich_text(text))
                         @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                             (child?)
@@ -243,7 +241,7 @@ impl<'l> HtmlRenderer<'l> {
             }),
             BlockType::NumberedListItem { text, children } => Ok(html! {
                 ol {
-                    li id=(id) {
+                    li id=(block.id) {
                         (self.render_rich_text(text))
                         @for child in downloadables.extract(self.render_blocks(children, Some("indent"))) {
                             (child?)
@@ -252,7 +250,7 @@ impl<'l> HtmlRenderer<'l> {
                 }
             }),
             BlockType::Image { image, caption } => {
-                let (url, path) = get_downloadable_from_file(image, &block.id)?;
+                let (url, path) = get_downloadable_from_file(image, block.id)?;
 
                 // We need to create the return value before pushing the path
                 // so that we don't have to clone it
@@ -263,7 +261,7 @@ impl<'l> HtmlRenderer<'l> {
                     // Lack of alt text can be explained here
                     // https://stackoverflow.com/a/58468470/3018913
                     html! {
-                        figure id=(id) {
+                        figure id=(block.id) {
                             img src=(src);
                             figcaption {
                                 (caption)
@@ -274,7 +272,7 @@ impl<'l> HtmlRenderer<'l> {
                     eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
 
                     html! {
-                        img id=(id) src=(src);
+                        img id=(block.id) src=(src);
                     }
                 };
 
@@ -303,7 +301,7 @@ impl<'l> HtmlRenderer<'l> {
                     EmojiOrFile::File(file) => {
                         eprintln!("WARNING: Using images as callout icon results in images that don't have accessible alt text");
 
-                        let (url, path) = get_downloadable_from_file(file, &block.id)?;
+                        let (url, path) = get_downloadable_from_file(file, block.id)?;
                         let src = path.to_str().unwrap();
 
                         let markup = html! {
@@ -317,7 +315,7 @@ impl<'l> HtmlRenderer<'l> {
                 };
 
                 Ok(html! {
-                    aside id=(id) {
+                    aside id=(block.id) {
                         div {
                             (icon)
                         }
@@ -333,7 +331,7 @@ impl<'l> HtmlRenderer<'l> {
                 })
             }
             _ => Ok(html! {
-                h4 id=(id) style="color: red;" class=[class] {
+                h4 id=(block.id) style="color: red;" class=[class] {
                     "UNSUPPORTED FEATURE: " (block.name())
                 }
             }),
@@ -351,7 +349,7 @@ impl<'l> HtmlRenderer<'l> {
     }
 }
 
-fn get_downloadable_from_file(file: &File, block_id: &str) -> Result<(String, PathBuf)> {
+fn get_downloadable_from_file(file: &File, block_id: NotionId) -> Result<(String, PathBuf)> {
     let url = match file {
         File::Internal { url, .. } => url,
         File::External { url } => url,
@@ -362,7 +360,8 @@ fn get_downloadable_from_file(file: &File, block_id: &str) -> Result<(String, Pa
         .path_segments()
         .and_then(|segments| segments.last().map(Path::new).and_then(Path::extension));
     // A path is the media directory + UUID + ext
-    // i.e media/eb39a20e-1036-4469-b750-a9df8f4f18df.png
+    // i.e media/eb39a20e10364469b750a9df8f4f18df.png
+    let block_id = block_id.to_string();
     let mut path = PathBuf::with_capacity(
         FILES_DIR.len() + block_id.len() + ext.map(|ext| ext.len()).unwrap_or(0),
     );
@@ -538,12 +537,12 @@ impl<'a> Render for RichTextRenderer<'a> {
 const UUID_WITHOUT_DASHES_LENGTH: usize = 32;
 const HEADING_LINK_ICON_LENGTH: usize = 1 + UUID_WITHOUT_DASHES_LENGTH;
 
-fn render_heading_link_icon(heading_anchors: HeadingAnchors, id: &str) -> Markup {
+fn render_heading_link_icon(heading_anchors: HeadingAnchors, id: NotionId) -> Markup {
     match heading_anchors {
         HeadingAnchors::Icon => {
             let mut link = String::with_capacity(HEADING_LINK_ICON_LENGTH);
             link.push('#');
-            link.push_str(id);
+            link.push_str(&id.to_string());
 
             html! {
                 a href=(link) {
@@ -598,7 +597,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "eb39a20e-1036-4469-b750-a9df8f4f18df".to_string(),
+            id: "eb39a20e-1036-4469-b750-a9df8f4f18df".parse().unwrap(),
             created_time: "2021-11-13T17:37:00.000Z".to_string(),
             last_edited_time: "2021-11-13T17:37:00.000Z".to_string(),
             has_children: false,
@@ -627,7 +626,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".to_string(),
+            id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".parse().unwrap(),
             created_time: "2021-11-13T17:35:00.000Z".to_string(),
             last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
             has_children: false,
@@ -656,7 +655,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "8042c69c-49e7-420b-a498-39b9d61c43d0".to_string(),
+            id: "8042c69c-49e7-420b-a498-39b9d61c43d0".parse().unwrap(),
             created_time: "2021-11-13T17:35:00.000Z".to_string(),
             last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
             has_children: false,
@@ -685,7 +684,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "7f54fffa-6108-4a49-b8e9-587afe7ac08f".to_string(),
+            id: "7f54fffa-6108-4a49-b8e9-587afe7ac08f".parse().unwrap(),
             created_time: "2021-11-13T17:35:00.000Z".to_string(),
             last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
             has_children: false,
@@ -723,7 +722,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".to_string(),
+            id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".parse().unwrap(),
             created_time: "2021-11-13T17:35:00.000Z".to_string(),
             last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
             has_children: false,
@@ -752,7 +751,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "8042c69c-49e7-420b-a498-39b9d61c43d0".to_string(),
+            id: "8042c69c-49e7-420b-a498-39b9d61c43d0".parse().unwrap(),
             created_time: "2021-11-13T17:35:00.000Z".to_string(),
             last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
             has_children: false,
@@ -781,7 +780,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "7f54fffa-6108-4a49-b8e9-587afe7ac08f".to_string(),
+            id: "7f54fffa-6108-4a49-b8e9-587afe7ac08f".parse().unwrap(),
             created_time: "2021-11-13T17:35:00.000Z".to_string(),
             last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
             has_children: false,
@@ -819,7 +818,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "5e845049-255f-4232-96fd-6f20449be0bc".to_string(),
+            id: "5e845049-255f-4232-96fd-6f20449be0bc".parse().unwrap(),
             created_time: "2021-11-15T21:56:00.000Z".to_string(),
             last_edited_time: "2021-11-15T21:56:00.000Z".to_string(),
             has_children: false,
@@ -845,7 +844,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "64740ca6-3a06-4694-8845-401688334ef5".to_string(),
+            id: "64740ca6-3a06-4694-8845-401688334ef5".parse().unwrap(),
             created_time: "2021-11-13T17:35:00.000Z".to_string(),
             last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
             has_children: false,
@@ -875,7 +874,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "4f2efd79-ae9a-4684-827c-6b69743d6c5d".to_string(),
+            id: "4f2efd79-ae9a-4684-827c-6b69743d6c5d".parse().unwrap(),
             created_time: "2021-11-13T17:35:00.000Z".to_string(),
             last_edited_time: "2021-11-16T11:23:00.000Z".to_string(),
             has_children: true,
@@ -895,7 +894,7 @@ mod tests {
                 children: vec![
                     Block {
                         object: "block".to_string(),
-                        id: "4fb9dd79-2fc7-45b1-b3a2-8efae49992ed".to_string(),
+                        id: "4fb9dd79-2fc7-45b1-b3a2-8efae49992ed".parse().unwrap(),
                         created_time: "2021-11-15T18:03:00.000Z".to_string(),
                         last_edited_time: "2021-11-16T11:23:00.000Z".to_string(),
                         has_children: true,
@@ -915,7 +914,7 @@ mod tests {
                             children: vec![
                                 Block {
                                     object: "block".to_string(),
-                                    id: "817c0ca1-721a-4565-ac54-eedbbe471f0b".to_string(),
+                                    id: "817c0ca1-721a-4565-ac54-eedbbe471f0b".parse().unwrap(),
                                     created_time: "2021-11-16T11:23:00.000Z".to_string(),
                                     last_edited_time: "2021-11-16T11:23:00.000Z".to_string(),
                                     has_children: false,
@@ -963,7 +962,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "191b3d44-a37f-40c4-bb4f-3477359022fd".to_string(),
+            id: "191b3d44-a37f-40c4-bb4f-3477359022fd".parse().unwrap(),
             created_time: "2021-11-13T18:58:00.000Z".to_string(),
             last_edited_time: "2021-11-13T19:00:00.000Z".to_string(),
             has_children: false,
@@ -1006,7 +1005,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "bf0128fd-3b85-4d85-aada-e500dcbcda35".to_string(),
+            id: "bf0128fd-3b85-4d85-aada-e500dcbcda35".parse().unwrap(),
             created_time: "2021-11-13T17:35:00.000Z".to_string(),
             last_edited_time: "2021-11-13T17:38:00.000Z".to_string(),
             has_children: false,
@@ -1067,7 +1066,7 @@ mod tests {
 
         let block = Block {
             object: "block".to_string(),
-            id: "844b3fdf-5688-4f6c-91e8-97b4f0e436cd".to_string(),
+            id: "844b3fdf-5688-4f6c-91e8-97b4f0e436cd".parse().unwrap(),
             created_time: "2021-11-13T19:02:00.000Z".to_string(),
             last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
             has_children: true,
@@ -1084,7 +1083,7 @@ mod tests {
                 }],
                 children: vec![Block {
                     object: "block".to_string(),
-                    id: "c3e9c471-d4b3-47dc-ab6a-6ecd4dda161a".to_string(),
+                    id: "c3e9c471-d4b3-47dc-ab6a-6ecd4dda161a".parse().unwrap(),
                     created_time: "2021-11-13T19:02:00.000Z".to_string(),
                     last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
                     has_children: true,
@@ -1101,7 +1100,7 @@ mod tests {
                         }],
                         children: vec![Block {
                             object: "block".to_string(),
-                            id: "55d72942-49f6-49f9-8ade-e3d049f682e5".to_string(),
+                            id: "55d72942-49f6-49f9-8ade-e3d049f682e5".parse().unwrap(),
                             created_time: "2021-11-13T19:03:00.000Z".to_string(),
                             last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
                             has_children: true,
@@ -1121,7 +1120,7 @@ mod tests {
                                 children: vec![
                                     Block {
                                         object: "block".to_string(),
-                                        id: "100116e2-0a47-4903-8b79-4ac9cc3a7870".to_string(),
+                                        id: "100116e2-0a47-4903-8b79-4ac9cc3a7870".parse().unwrap(),
                                         created_time: "2021-11-13T19:03:00.000Z".to_string(),
                                         last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
                                         has_children: false,
@@ -1141,7 +1140,7 @@ mod tests {
                                     },
                                     Block {
                                         object: "block".to_string(),
-                                        id: "c1a5555a-8359-4999-80dc-10241d262071".to_string(),
+                                        id: "c1a5555a-8359-4999-80dc-10241d262071".parse().unwrap(),
                                         created_time: "2021-11-13T19:03:00.000Z".to_string(),
                                         last_edited_time: "2021-11-13T19:03:00.000Z".to_string(),
                                         has_children: false,
@@ -1189,7 +1188,7 @@ mod tests {
         let blocks = [
                     Block {
                         object: "block".to_string(),
-                        id: "5ac94d7e-25de-4fa3-a781-0a43aac9d5c4".to_string(),
+                        id: "5ac94d7e-25de-4fa3-a781-0a43aac9d5c4".parse().unwrap(),
                         created_time: "2021-11-13T17:35:00.000Z".to_string(),
                         last_edited_time: "2021-11-21T13:39:00.000Z".to_string(),
                         has_children: false,
@@ -1214,7 +1213,7 @@ mod tests {
                     },
                     Block {
                         object: "block".to_string(),
-                        id: "d1e5e2c5-4351-4b8e-83a3-20ef532967a7".to_string(),
+                        id: "d1e5e2c5-4351-4b8e-83a3-20ef532967a7".parse().unwrap(),
                         created_time: "2021-11-13T17:35:00.000Z".to_string(),
                         last_edited_time: "2021-11-13T17:35:00.000Z".to_string(),
                         has_children: false,
@@ -1244,8 +1243,8 @@ mod tests {
         assert_eq!(
             markup,
             vec![
-                r#"<figure id="5ac94d7e25de4fa3a7810a43aac9d5c4"><img src="media/5ac94d7e-25de-4fa3-a781-0a43aac9d5c4.png"><figcaption>Circle rendered in Bevy</figcaption></figure>"#,
-                r#"<img id="d1e5e2c543514b8e83a320ef532967a7" src="media/d1e5e2c5-4351-4b8e-83a3-20ef532967a7">"#
+                r#"<figure id="5ac94d7e25de4fa3a7810a43aac9d5c4"><img src="media/5ac94d7e25de4fa3a7810a43aac9d5c4.png"><figcaption>Circle rendered in Bevy</figcaption></figure>"#,
+                r#"<img id="d1e5e2c543514b8e83a320ef532967a7" src="media/d1e5e2c543514b8e83a320ef532967a7">"#
             ]
         );
         assert_eq!(
@@ -1253,11 +1252,11 @@ mod tests {
             vec![
                 Downloadable::new(
                     "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/efbb73c3-2df3-4365-bcf3-cc9ece431127/circle.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211121%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211121T134120Z&X-Amz-Expires=3600&X-Amz-Signature=9ea689335e9054f55c794c7609f9c9c057c80484cd06eaf9dff9641d92e923c8&X-Amz-SignedHeaders=host&x-id=GetObject".to_string(),
-                    PathBuf::from("media/5ac94d7e-25de-4fa3-a781-0a43aac9d5c4.png"),
+                    PathBuf::from("media/5ac94d7e25de4fa3a7810a43aac9d5c4.png"),
                 ),
                 Downloadable::new(
                     "https://mathspy.me/random-file".to_string(),
-                    PathBuf::from("media/d1e5e2c5-4351-4b8e-83a3-20ef532967a7"),
+                    PathBuf::from("media/d1e5e2c543514b8e83a320ef532967a7"),
                 ),
             ]
         );
@@ -1274,7 +1273,7 @@ mod tests {
         let blocks = [
             Block {
                 object: "block".to_string(),
-                id: "b7363fed-d7cd-4aba-a86f-f51763f4ce91".to_string(),
+                id: "b7363fed-d7cd-4aba-a86f-f51763f4ce91".parse().unwrap(),
                 created_time: "2021-11-13T17:50:00.000Z".to_string(),
                 last_edited_time: "2021-11-13T17:50:00.000Z".to_string(),
                 has_children: false,
@@ -1297,7 +1296,7 @@ mod tests {
             },
             Block {
                 object: "block".to_string(),
-                id: "28c719a3-9845-4f08-9e87-1fe78e50e92b".to_string(),
+                id: "28c719a3-9845-4f08-9e87-1fe78e50e92b".parse().unwrap(),
                 created_time: "2021-11-13T17:50:00.000Z".to_string(),
                 last_edited_time: "2021-11-13T17:50:00.000Z".to_string(),
                 has_children: false,
@@ -1321,7 +1320,7 @@ mod tests {
             },
             Block {
                 object: "block".to_string(),
-                id: "66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73".to_string(),
+                id: "66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73".parse().unwrap(),
                 created_time: "2021-11-13T17:50:00.000Z".to_string(),
                 last_edited_time: "2021-11-13T17:50:00.000Z".to_string(),
                 has_children: false,
@@ -1362,8 +1361,8 @@ mod tests {
             markup,
             vec![
                 r#"<aside id="b7363fedd7cd4abaa86ff51763f4ce91"><div><span role="img" aria-label="warning">⚠️</span></div><div><p>Some really spooky callout.</p></div></aside>"#,
-                r#"<aside id="28c719a398454f089e871fe78e50e92b"><div><img src="media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"></div><div><p>Some really spooky callout.</p></div></aside>"#,
-                r#"<aside id="66ea73701a3b4f4eada53be2f7e6ef73"><div><img src="media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"></div><div><p>Some really spooky callout.</p></div></aside>"#
+                r#"<aside id="28c719a398454f089e871fe78e50e92b"><div><img src="media/28c719a398454f089e871fe78e50e92b.gif"></div><div><p>Some really spooky callout.</p></div></aside>"#,
+                r#"<aside id="66ea73701a3b4f4eada53be2f7e6ef73"><div><img src="media/66ea73701a3b4f4eada53be2f7e6ef73"></div><div><p>Some really spooky callout.</p></div></aside>"#
             ]
         );
         assert_eq!(
@@ -1371,11 +1370,11 @@ mod tests {
             vec![
                 Downloadable::new(
                     "https://example.com/hehe.gif".to_string(),
-                    PathBuf::from("media/28c719a3-9845-4f08-9e87-1fe78e50e92b.gif"),
+                    PathBuf::from("media/28c719a398454f089e871fe78e50e92b.gif"),
                 ),
                 Downloadable::new(
                     "https://example.com".to_string(),
-                    PathBuf::from("media/66ea7370-1a3b-4f4e-ada5-3be2f7e6ef73"),
+                    PathBuf::from("media/66ea73701a3b4f4eada53be2f7e6ef73"),
                 ),
             ]
         );

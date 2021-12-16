@@ -1,4 +1,4 @@
-use crate::response::Language;
+use crate::response::{Language, NotionId};
 use anyhow::{bail, Context, Result};
 use maud::{html, Markup, PreEscaped};
 use tree_sitter_highlight::{HighlightConfiguration, Highlighter, HtmlRenderer};
@@ -22,7 +22,7 @@ const HIGHLIGHTS: [&str; 14] = [
     "variable",
 ];
 
-pub fn highlight(lang: &Language, code: &str, id: &str) -> Result<Markup> {
+pub fn highlight(lang: &Language, code: &str, id: NotionId) -> Result<Markup> {
     // This converts the language because to serde_json::Value and since we are confident
     // that it's a Value of variant `Value::String` we call .as_str to get the content of
     // the string.
@@ -91,7 +91,7 @@ mod tests {
             highlight(
                 &Language::PlainText,
                 "Hey there, lovely friend!\nI hope you have a great day!",
-                "5e845049255f423296fd6f20449be0bc"
+                "5e845049255f423296fd6f20449be0bc".parse().unwrap()
             )
             .unwrap()
             .into_string(),
