@@ -326,6 +326,12 @@ pub struct NotionDate {
     pub start: Time,
     #[serde(deserialize_with = "deserializers::optional_time")]
     pub end: Option<Time>,
+    // TODO(NOTION): This just got added to the API recently but it seems to never be returned
+    // as a response, it's possible to set it if you're using the API to add/modify Notion though
+    // Would be really useful if it was there
+    // It's also tied to both `start` and `end` in a whacky way, it's never specified if there's
+    // no time component, we might want to encode that somehow in the type system
+    pub time_zone: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize, PartialEq)]
@@ -1043,6 +1049,7 @@ mod tests {
                             parsed: Either::Right(datetime!(2021-11-07 10:59 UTC))
                         },
                         end: None,
+                        time_zone: None,
                     }),
                 },
             }
@@ -1087,6 +1094,7 @@ mod tests {
                             original: "2021-12-06".to_string(),
                             parsed: Either::Left(date!(2021 - 12 - 06))
                         }),
+                        time_zone: None,
                     }),
                 },
             }

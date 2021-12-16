@@ -1611,6 +1611,7 @@ mod tests {
                         parsed: Either::Right(datetime!(2021-11-07 02:59-08:00)),
                     },
                     end: None,
+                    time_zone: None,
                 }),
             },
         };
@@ -1636,6 +1637,7 @@ mod tests {
                         original: "2021-12-06".to_string(),
                         parsed: Either::Left(date!(2021 - 12 - 06)),
                     }),
+                    time_zone: None,
                 }),
             },
         };
