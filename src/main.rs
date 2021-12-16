@@ -122,7 +122,7 @@ impl FromStr for HeadingAnchors {
     }
 }
 
-struct LinkMap(HashMap<String, String>);
+struct LinkMap(HashMap<NotionId, String>);
 
 #[derive(Debug)]
 enum LinkMapError {
@@ -155,10 +155,7 @@ impl FromStr for LinkMap {
                     None => return Err(LinkMapError::MissingPageId),
                 };
 
-                let page_id = page_id.replace("-", "");
-                if page_id.len() != 32 {
-                    return Err(LinkMapError::InvalidPageId);
-                }
+                let page_id = page_id.parse().map_err(|_| LinkMapError::InvalidPageId)?;
 
                 let path = match entry.next() {
                     Some(path) => path,
@@ -229,13 +226,10 @@ async fn main() -> Result<()> {
     )
     .context("Failed to parse head partial as utf8")?;
     let mut current_pages = HashSet::new();
-    current_pages.extend(
-        std::iter::once(opts.document_id.replace("-", "")).chain(
-            opts.current_pages
-                .into_iter()
-                .map(|page_id| page_id.replace("-", "")),
-        ),
-    );
+    current_pages.insert(document_id);
+    for current_page in opts.current_pages {
+        current_pages.insert(current_page.parse()?);
+    }
     let renderer = HtmlRenderer {
         heading_anchors: opts.heading_anchors,
         current_pages,

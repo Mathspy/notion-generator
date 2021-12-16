@@ -177,7 +177,9 @@ mod deserializers {
             };
 
             Ok(Some(RichTextLink::Internal {
-                page: page.to_string(),
+                page: page.parse().map_err(|_| {
+                    D::Error::invalid_value(Unexpected::Str(page), &"a Notion page UUID")
+                })?,
                 block: parts.next().map(str::to_string),
             }))
         } else {
@@ -207,8 +209,13 @@ pub enum RichTextType {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub enum RichTextLink {
-    Internal { page: String, block: Option<String> },
-    External { url: String },
+    Internal {
+        page: NotionId,
+        block: Option<String>,
+    },
+    External {
+        url: String,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -862,7 +869,7 @@ mod tests {
                 ty: RichTextType::Text {
                     content: "¹".to_string(),
                     link: Some(RichTextLink::Internal {
-                        page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                        page: "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                         block: Some("48cb69650f584e60be8159e9f8e07a8a".to_string()),
                     })
                 },
@@ -900,7 +907,7 @@ mod tests {
                 ty: RichTextType::Text {
                     content: "A less watered down test".to_string(),
                     link: Some(RichTextLink::Internal {
-                        page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                        page: "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                         block: None,
                     })
                 },

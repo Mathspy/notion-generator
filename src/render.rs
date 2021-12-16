@@ -26,10 +26,10 @@ pub struct HtmlRenderer<'l> {
     ///
     /// If you're rendering multiple pages together into the same HTML page this should be a set
     /// of all those pages ids
-    pub current_pages: HashSet<String>,
+    pub current_pages: HashSet<NotionId>,
     /// A map from page ids to URL paths to replace page ids in links with the corresponding URL
     /// path
-    pub link_map: &'l HashMap<String, String>,
+    pub link_map: &'l HashMap<NotionId, String>,
 }
 
 enum BlockCoalition<'a> {
@@ -376,8 +376,8 @@ fn get_downloadable_from_file(file: &File, block_id: NotionId) -> Result<(String
 
 struct RichTextRenderer<'a> {
     rich_text: &'a RichText,
-    current_pages: &'a HashSet<String>,
-    link_map: &'a HashMap<String, String>,
+    current_pages: &'a HashSet<NotionId>,
+    link_map: &'a HashMap<NotionId, String>,
 }
 
 impl<'a> RichTextRenderer<'a> {
@@ -428,14 +428,14 @@ impl<'a> Render for RichTextRenderer<'a> {
                                 }
                                 (true, None) => {
                                     buffer.push('#');
-                                    buffer.push_str(page);
+                                    buffer.push_str(&page.to_string());
                                 }
                                 (false, block) => {
                                     if let Some(path) = self.link_map.get(page) {
                                         buffer.push_str(path);
                                     } else {
                                         buffer.push('/');
-                                        buffer.push_str(page);
+                                        buffer.push_str(&page.to_string());
                                     }
 
                                     if let Some(block) = block {
@@ -591,7 +591,7 @@ mod tests {
     fn render_unsupported() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
 
@@ -620,7 +620,7 @@ mod tests {
     fn render_headings_without_anchors() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
 
@@ -716,7 +716,7 @@ mod tests {
     fn render_headings_with_icon_anchors() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::Icon,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
 
@@ -812,7 +812,7 @@ mod tests {
     fn render_divider() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
 
@@ -838,7 +838,7 @@ mod tests {
     fn render_paragraphs() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
 
@@ -956,7 +956,7 @@ mod tests {
     fn render_quote() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
 
@@ -999,7 +999,7 @@ mod tests {
     fn render_code() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
 
@@ -1060,7 +1060,7 @@ mod tests {
     fn render_lists() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
 
@@ -1181,7 +1181,7 @@ mod tests {
     fn render_images() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
 
@@ -1266,7 +1266,7 @@ mod tests {
     fn render_callouts() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
 
@@ -1391,13 +1391,13 @@ mod tests {
             heading_anchors: HeadingAnchors::None,
             current_pages: HashSet::new(),
             link_map: &HashMap::from([(
-                "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                 "/path/to/page".to_string(),
             )]),
         };
         let renderer_with_pages = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
         let text = RichText {
@@ -1491,7 +1491,7 @@ mod tests {
             ty: RichTextType::Text {
                 content: "¹".to_string(),
                 link: Some(RichTextLink::Internal {
-                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                     block: Some("48cb69650f584e60be8159e9f8e07a8a".to_string()),
                 }),
             },
@@ -1512,7 +1512,7 @@ mod tests {
             ty: RichTextType::Text {
                 content: "¹".to_string(),
                 link: Some(RichTextLink::Internal {
-                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                     block: None,
                 }),
             },
@@ -1531,7 +1531,7 @@ mod tests {
             ty: RichTextType::Text {
                 content: "A less watered down test".to_string(),
                 link: Some(RichTextLink::Internal {
-                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                     block: None,
                 }),
             },
@@ -1550,7 +1550,7 @@ mod tests {
             ty: RichTextType::Text {
                 content: "A less watered down test".to_string(),
                 link: Some(RichTextLink::Internal {
-                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                     block: Some("48cb69650f584e60be8159e9f8e07a8a".to_string()),
                 }),
             },
@@ -1569,7 +1569,7 @@ mod tests {
             ty: RichTextType::Text {
                 content: "A less watered down test".to_string(),
                 link: Some(RichTextLink::Internal {
-                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                     block: None,
                 }),
             },
@@ -1588,7 +1588,7 @@ mod tests {
             ty: RichTextType::Text {
                 content: "A less watered down test".to_string(),
                 link: Some(RichTextLink::Internal {
-                    page: "46f8638c25a84ccd9d926e42bdb5535e".to_string(),
+                    page: "46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap(),
                     block: Some("48cb69650f584e60be8159e9f8e07a8a".to_string()),
                 }),
             },
@@ -1652,7 +1652,7 @@ mod tests {
     fn display_rich_text_type_equation() {
         let renderer = HtmlRenderer {
             heading_anchors: HeadingAnchors::None,
-            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".to_string()]),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
         };
         let text = RichText {
