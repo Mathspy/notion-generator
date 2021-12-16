@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use flurry::HashSet;
 use futures_util::stream::{FuturesUnordered, TryStreamExt};
 use reqwest::Client;
@@ -61,7 +61,9 @@ impl Downloadables {
     }
 
     pub async fn download_all(self, client: Client, output: &Path) -> Result<()> {
-        tokio::fs::create_dir(output.join(FILES_DIR)).await?;
+        tokio::fs::create_dir(output.join(FILES_DIR))
+            .await
+            .with_context(|| format!("Failed to create dir {}", output.display()))?;
 
         let client_ref = &client;
 
@@ -80,7 +82,12 @@ impl Downloadables {
                 .map(|downloadable| async move {
                     let response = client_ref.get(&downloadable.url).send().await?;
                     let bytes = response.bytes().await?;
-                    tokio::fs::write(output.join(&downloadable.path), bytes.as_ref()).await?;
+                    let destination = output.join(&downloadable.path);
+                    tokio::fs::write(&destination, bytes.as_ref())
+                        .await
+                        .with_context(|| {
+                            format!("Failed to write file {}", destination.display())
+                        })?;
                     Ok(())
                 })
                 .collect::<FuturesUnordered<_>>()
