@@ -310,7 +310,10 @@ impl<'html> HtmlRenderer<'html> {
 
                 // We need to create the return value before pushing the path
                 // so that we don't have to clone it
-                let src = path.to_str().unwrap();
+                // Also we need the src path to be absolute because we don't want it
+                // to be relative to the page where the HTML is rendered
+                let src = Path::new("/").join(&path);
+                let src = src.to_str().unwrap();
                 let markup = if let Some(caption) =
                     caption.get(0).map(|rich_text| &rich_text.plain_text)
                 {
@@ -358,7 +361,8 @@ impl<'html> HtmlRenderer<'html> {
                         eprintln!("WARNING: Using images as callout icon results in images that don't have accessible alt text");
 
                         let (url, path) = get_downloadable_from_file(file, block.id)?;
-                        let src = path.to_str().unwrap();
+                        let src = Path::new("/").join(&path);
+                        let src = src.to_str().unwrap();
 
                         let markup = html! {
                             img src=(src);
@@ -1403,8 +1407,8 @@ mod tests {
         assert_eq!(
             markup,
             vec![
-                r#"<figure id="5ac94d7e25de4fa3a7810a43aac9d5c4"><img src="media/5ac94d7e25de4fa3a7810a43aac9d5c4.png"><figcaption>Circle rendered in Bevy</figcaption></figure>"#,
-                r#"<img id="d1e5e2c543514b8e83a320ef532967a7" src="media/d1e5e2c543514b8e83a320ef532967a7">"#
+                r#"<figure id="5ac94d7e25de4fa3a7810a43aac9d5c4"><img src="/media/5ac94d7e25de4fa3a7810a43aac9d5c4.png"><figcaption>Circle rendered in Bevy</figcaption></figure>"#,
+                r#"<img id="d1e5e2c543514b8e83a320ef532967a7" src="/media/d1e5e2c543514b8e83a320ef532967a7">"#
             ]
         );
         let guard = renderer.downloadables.set.guard();
@@ -1519,8 +1523,8 @@ mod tests {
             markup,
             vec![
                 r#"<aside id="b7363fedd7cd4abaa86ff51763f4ce91"><div><span role="img" aria-label="warning">⚠️</span></div><div><p>Some really spooky callout.</p></div></aside>"#,
-                r#"<aside id="28c719a398454f089e871fe78e50e92b"><div><img src="media/28c719a398454f089e871fe78e50e92b.gif"></div><div><p>Some really spooky callout.</p></div></aside>"#,
-                r#"<aside id="66ea73701a3b4f4eada53be2f7e6ef73"><div><img src="media/66ea73701a3b4f4eada53be2f7e6ef73"></div><div><p>Some really spooky callout.</p></div></aside>"#
+                r#"<aside id="28c719a398454f089e871fe78e50e92b"><div><img src="/media/28c719a398454f089e871fe78e50e92b.gif"></div><div><p>Some really spooky callout.</p></div></aside>"#,
+                r#"<aside id="66ea73701a3b4f4eada53be2f7e6ef73"><div><img src="/media/66ea73701a3b4f4eada53be2f7e6ef73"></div><div><p>Some really spooky callout.</p></div></aside>"#
             ]
         );
         let guard = renderer.downloadables.set.guard();
