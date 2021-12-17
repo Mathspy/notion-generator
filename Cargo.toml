@@ -14,6 +14,7 @@ async-recursion = { version = "0.3" }
 time = { git = "https://github.com/Mathspy/time", branch = "fmt-write", features = ["formatting", "parsing", "macros"] }
 either = { version = "1" }
 emoji = { version = "0.2" }
+flurry = { version = "0.3" }
 futures-util = { version = "0.3" }
 itertools = { version = "0.10" }
 katex = { version = "0.4" }

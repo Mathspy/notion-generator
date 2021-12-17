@@ -1,7 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use notion_generator::{
-    client::NotionClient, options::HeadingAnchors, response::NotionId, HtmlRenderer,
+    client::NotionClient, download::Downloadables, options::HeadingAnchors, response::NotionId,
+    HtmlRenderer,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -115,12 +116,14 @@ async fn main() -> Result<()> {
     for current_page in opts.current_pages {
         current_pages.insert(current_page.parse()?);
     }
+    let downloadables = Downloadables::new();
     let renderer = HtmlRenderer {
         heading_anchors: opts.heading_anchors,
         current_pages,
         link_map: &opts.link_map.0,
+        downloadables: &downloadables,
     };
-    let (markup, downloadables) = renderer
+    let markup = renderer
         .render_html(blocks, head)
         .context("Failed to render page")?;
 
@@ -134,7 +137,7 @@ async fn main() -> Result<()> {
 
     tokio::try_join!(
         write_markup,
-        downloadables.download_all(client.client(), &opts.output)
+        downloadables.download_all(client.client().clone(), &opts.output)
     )?;
 
     Ok(())

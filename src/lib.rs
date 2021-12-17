@@ -1,5 +1,5 @@
 pub mod client;
-mod download;
+pub mod download;
 mod highlight;
 pub mod options;
 pub mod render;
