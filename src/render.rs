@@ -87,7 +87,7 @@ pub trait Title {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum Heading {
+pub enum Heading {
     H1,
     H2,
     H3,
@@ -110,7 +110,7 @@ impl From<Heading> for u8 {
 }
 
 #[derive(Debug)]
-struct InvalidHtmlHeading(u16);
+pub struct InvalidHtmlHeading(u16);
 
 impl fmt::Display for InvalidHtmlHeading {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -430,7 +430,7 @@ impl<'html> HtmlRenderer<'html> {
         }
     }
 
-    fn render_heading(
+    pub fn render_heading(
         &self,
         id: NotionId,
         class: Option<&str>,
