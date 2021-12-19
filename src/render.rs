@@ -91,8 +91,8 @@ enum Heading {
     H2,
     H3,
     H4,
-    // H5,
-    // H6,
+    H5,
+    H6,
 }
 
 impl<'html> HtmlRenderer<'html> {
@@ -427,6 +427,16 @@ impl<'html> HtmlRenderer<'html> {
             },
             Heading::H4 => html! {
                 h4 id=(id) class=[class] {
+                    (content)
+                }
+            },
+            Heading::H5 => html! {
+                h5 id=(id) class=[class] {
+                    (content)
+                }
+            },
+            Heading::H6 => html! {
+                h6 id=(id) class=[class] {
                     (content)
                 }
             },
