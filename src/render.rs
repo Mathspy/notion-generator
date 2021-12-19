@@ -187,7 +187,7 @@ impl<'html> HtmlRenderer<'html> {
     }
 
     /// Render a group of blocks into HTML
-    fn render_blocks<'a, I>(
+    pub fn render_blocks<'a, I>(
         &'a self,
         blocks: I,
         class: Option<&'a str>,
