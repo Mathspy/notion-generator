@@ -13,7 +13,7 @@ use reqwest::Url;
 use std::collections::HashMap;
 use std::{
     collections::HashSet,
-    fmt::Write,
+    fmt::{self, Write},
     path::{Path, PathBuf},
 };
 
@@ -86,6 +86,7 @@ pub trait Title {
     fn title(&self) -> &[RichText];
 }
 
+#[derive(Debug, Clone, Copy)]
 enum Heading {
     H1,
     H2,
@@ -95,9 +96,61 @@ enum Heading {
     H6,
 }
 
+impl From<Heading> for u8 {
+    fn from(value: Heading) -> Self {
+        match value {
+            Heading::H1 => 1,
+            Heading::H2 => 2,
+            Heading::H3 => 3,
+            Heading::H4 => 4,
+            Heading::H5 => 5,
+            Heading::H6 => 6,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct InvalidHtmlHeading(u16);
+
+impl fmt::Display for InvalidHtmlHeading {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("h")?;
+        self.0.fmt(f)?;
+        f.write_str(" is not a valid HTML heading")?;
+
+        Ok(())
+    }
+}
+
+impl std::error::Error for InvalidHtmlHeading {}
+
+impl TryFrom<u16> for Heading {
+    type Error = InvalidHtmlHeading;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Heading::H1),
+            2 => Ok(Heading::H2),
+            3 => Ok(Heading::H3),
+            4 => Ok(Heading::H4),
+            5 => Ok(Heading::H5),
+            6 => Ok(Heading::H6),
+            value => Err(InvalidHtmlHeading(value)),
+        }
+    }
+}
+
+impl Heading {
+    fn downgrade(&self, amount: u8) -> Result<Self, InvalidHtmlHeading> {
+        let current = u8::from(*self);
+        let downgraded = u16::from(current) + u16::from(amount);
+        Heading::try_from(downgraded)
+    }
+}
+
 impl<'html> HtmlRenderer<'html> {
     pub fn render_html(&self, blocks: Vec<Block>, head: String) -> Result<Markup> {
-        let rendered_blocks = self.render_blocks(&blocks, None, false);
+        let rendered_blocks = self.render_blocks(&blocks, None, 0);
 
         let markup = html! {
             (DOCTYPE)
@@ -123,7 +176,7 @@ impl<'html> HtmlRenderer<'html> {
     }
 
     pub fn render_page<P: Title>(&self, page: &Page<P>) -> Result<Markup> {
-        let rendered_blocks = self.render_blocks(&page.children, None, true);
+        let rendered_blocks = self.render_blocks(&page.children, None, 1);
 
         Ok(html! {
             (self.render_heading(page.id, None, Heading::H1, page.properties.title()))
@@ -138,7 +191,7 @@ impl<'html> HtmlRenderer<'html> {
         &'a self,
         blocks: I,
         class: Option<&'a str>,
-        downgrade_headings: bool,
+        downgrade_headings: u8,
     ) -> impl Iterator<Item = Result<Markup>> + 'a
     where
         I: IntoIterator<Item = &'a Block> + 'a,
@@ -160,7 +213,7 @@ impl<'html> HtmlRenderer<'html> {
         ty: ListType,
         list: Vec<&Block>,
         class: Option<&str>,
-        downgrade_headings: bool,
+        downgrade_headings: u8,
     ) -> Result<Markup> {
         let list = list.into_iter().map(|item| {
             if let (Some(text), Some(children)) = (item.get_text(), item.get_children()) {
@@ -200,36 +253,27 @@ impl<'html> HtmlRenderer<'html> {
         &self,
         block: &Block,
         class: Option<&str>,
-        downgrade_headings: bool,
+        downgrade_headings: u8,
     ) -> Result<Markup> {
         match &block.ty {
-            BlockType::HeadingOne { text } => {
-                let heading = if !downgrade_headings {
-                    Heading::H1
-                } else {
-                    Heading::H2
-                };
-
-                Ok(self.render_heading(block.id, class, heading, text))
-            }
-            BlockType::HeadingTwo { text } => {
-                let heading = if !downgrade_headings {
-                    Heading::H2
-                } else {
-                    Heading::H3
-                };
-
-                Ok(self.render_heading(block.id, class, heading, text))
-            }
-            BlockType::HeadingThree { text } => {
-                let heading = if !downgrade_headings {
-                    Heading::H3
-                } else {
-                    Heading::H4
-                };
-
-                Ok(self.render_heading(block.id, class, heading, text))
-            }
+            BlockType::HeadingOne { text } => Ok(self.render_heading(
+                block.id,
+                class,
+                Heading::H1.downgrade(downgrade_headings)?,
+                text,
+            )),
+            BlockType::HeadingTwo { text } => Ok(self.render_heading(
+                block.id,
+                class,
+                Heading::H2.downgrade(downgrade_headings)?,
+                text,
+            )),
+            BlockType::HeadingThree { text } => Ok(self.render_heading(
+                block.id,
+                class,
+                Heading::H3.downgrade(downgrade_headings)?,
+                text,
+            )),
             BlockType::Divider {} => Ok(html! {
                 hr id=(block.id);
             }),
@@ -693,7 +737,7 @@ mod tests {
         };
 
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -740,7 +784,7 @@ mod tests {
             },
         };
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -777,7 +821,7 @@ mod tests {
             },
         };
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -814,7 +858,7 @@ mod tests {
             },
         };
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -861,7 +905,7 @@ mod tests {
             },
         };
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -898,7 +942,7 @@ mod tests {
             },
         };
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -935,7 +979,7 @@ mod tests {
             },
         };
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -982,7 +1026,7 @@ mod tests {
             },
         };
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -1020,7 +1064,7 @@ mod tests {
         };
 
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(markup, r#"<hr id="5e845049255f423296fd6f20449be0bc">"#);
@@ -1065,7 +1109,7 @@ mod tests {
             },
         };
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -1152,7 +1196,7 @@ mod tests {
         };
 
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -1203,7 +1247,7 @@ mod tests {
         };
 
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -1255,7 +1299,7 @@ mod tests {
         };
 
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -1404,7 +1448,7 @@ mod tests {
         };
 
         let markup = renderer
-            .render_block(&block, None, false)
+            .render_block(&block, None, 0)
             .map(|markup| markup.into_string())
             .unwrap();
         assert_eq!(
@@ -1474,7 +1518,7 @@ mod tests {
                 ];
 
         let markup = renderer
-            .render_blocks(&blocks, None, false)
+            .render_blocks(&blocks, None, 0)
             .map(|result| result.unwrap())
             .map(|markup| markup.into_string())
             .collect::<Vec<_>>();
@@ -1588,7 +1632,7 @@ mod tests {
         ];
 
         let markup = renderer
-            .render_blocks(&blocks, None, false)
+            .render_blocks(&blocks, None, 0)
             .map(|result| result.unwrap())
             .map(|markup| markup.into_string())
             .collect::<Vec<_>>();
