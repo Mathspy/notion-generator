@@ -18,7 +18,7 @@ use std::{
 };
 
 pub struct HtmlRenderer<'html> {
-    pub heading_anchors: HeadingAnchors,
+    pub heading_anchors: HeadingAnchors<'html>,
     /// A list of pages that will be rendered together, used to figure out whether to use fragment
     /// part of links alone (#block_id) or to use the full canonical link (/page_id#block_id)
     ///
@@ -86,6 +86,15 @@ pub trait Title {
     fn title(&self) -> &[RichText];
 }
 
+enum Heading {
+    H1,
+    H2,
+    H3,
+    H4,
+    // H5,
+    // H6,
+}
+
 impl<'html> HtmlRenderer<'html> {
     pub fn render_html(&self, blocks: Vec<Block>, head: String) -> Result<Markup> {
         let rendered_blocks = self.render_blocks(&blocks, None, false);
@@ -117,10 +126,7 @@ impl<'html> HtmlRenderer<'html> {
         let rendered_blocks = self.render_blocks(&page.children, None, true);
 
         Ok(html! {
-            h1 id=(page.id) {
-                (render_heading_link_icon(self.heading_anchors, page.id))
-                (self.render_rich_text(page.properties.title()))
-            }
+            (self.render_heading(page.id, None, Heading::H1, page.properties.title()))
             @for block in rendered_blocks {
                 (block?)
             }
@@ -197,51 +203,33 @@ impl<'html> HtmlRenderer<'html> {
         downgrade_headings: bool,
     ) -> Result<Markup> {
         match &block.ty {
-            BlockType::HeadingOne { text } => Ok(if !downgrade_headings {
-                html! {
-                    h1 id=(block.id) class=[class] {
-                        (render_heading_link_icon(self.heading_anchors, block.id))
-                        (self.render_rich_text(text))
-                    }
-                }
-            } else {
-                html! {
-                    h2 id=(block.id) class=[class] {
-                        (render_heading_link_icon(self.heading_anchors, block.id))
-                        (self.render_rich_text(text))
-                    }
-                }
-            }),
-            BlockType::HeadingTwo { text } => Ok(if !downgrade_headings {
-                html! {
-                    h2 id=(block.id) class=[class] {
-                        (render_heading_link_icon(self.heading_anchors, block.id))
-                        (self.render_rich_text(text))
-                    }
-                }
-            } else {
-                html! {
-                    h3 id=(block.id) class=[class] {
-                        (render_heading_link_icon(self.heading_anchors, block.id))
-                        (self.render_rich_text(text))
-                    }
-                }
-            }),
-            BlockType::HeadingThree { text } => Ok(if !downgrade_headings {
-                html! {
-                    h3 id=(block.id) class=[class] {
-                        (render_heading_link_icon(self.heading_anchors, block.id))
-                        (self.render_rich_text(text))
-                    }
-                }
-            } else {
-                html! {
-                    h4 id=(block.id) class=[class] {
-                        (render_heading_link_icon(self.heading_anchors, block.id))
-                        (self.render_rich_text(text))
-                    }
-                }
-            }),
+            BlockType::HeadingOne { text } => {
+                let heading = if !downgrade_headings {
+                    Heading::H1
+                } else {
+                    Heading::H2
+                };
+
+                Ok(self.render_heading(block.id, class, heading, text))
+            }
+            BlockType::HeadingTwo { text } => {
+                let heading = if !downgrade_headings {
+                    Heading::H2
+                } else {
+                    Heading::H3
+                };
+
+                Ok(self.render_heading(block.id, class, heading, text))
+            }
+            BlockType::HeadingThree { text } => {
+                let heading = if !downgrade_headings {
+                    Heading::H3
+                } else {
+                    Heading::H4
+                };
+
+                Ok(self.render_heading(block.id, class, heading, text))
+            }
             BlockType::Divider {} => Ok(html! {
                 hr id=(block.id);
             }),
@@ -395,6 +383,53 @@ impl<'html> HtmlRenderer<'html> {
                     "UNSUPPORTED FEATURE: " (block.name())
                 }
             }),
+        }
+    }
+
+    fn render_heading(
+        &self,
+        id: NotionId,
+        class: Option<&str>,
+        heading: Heading,
+        text: &[RichText],
+    ) -> Markup {
+        let content = match self.heading_anchors {
+            HeadingAnchors::Before(icon) => html! {
+                (render_heading_icon(id, icon))
+                (" ")
+                (self.render_rich_text(text))
+            },
+            HeadingAnchors::After(icon) => html! {
+                (self.render_rich_text(text))
+                (" ")
+                (render_heading_icon(id, icon))
+            },
+            HeadingAnchors::None => html! {
+                (self.render_rich_text(text))
+            },
+        };
+
+        match heading {
+            Heading::H1 => html! {
+                h1 id=(id) class=[class] {
+                    (content)
+                }
+            },
+            Heading::H2 => html! {
+                h2 id=(id) class=[class] {
+                    (content)
+                }
+            },
+            Heading::H3 => html! {
+                h3 id=(id) class=[class] {
+                    (content)
+                }
+            },
+            Heading::H4 => html! {
+                h4 id=(id) class=[class] {
+                    (content)
+                }
+            },
         }
     }
 
@@ -595,34 +630,16 @@ impl<'a> Render for RichTextRenderer<'a> {
 const UUID_WITHOUT_DASHES_LENGTH: usize = 32;
 const HEADING_LINK_ICON_LENGTH: usize = 1 + UUID_WITHOUT_DASHES_LENGTH;
 
-fn render_heading_link_icon(heading_anchors: HeadingAnchors, id: NotionId) -> Markup {
-    match heading_anchors {
-        HeadingAnchors::Icon => {
-            let mut link = String::with_capacity(HEADING_LINK_ICON_LENGTH);
-            link.push('#');
-            link.push_str(&id.to_string());
+fn render_heading_icon(id: NotionId, icon: &str) -> Markup {
+    let mut link = String::with_capacity(HEADING_LINK_ICON_LENGTH);
+    link.push('#');
+    link.push_str(&id.to_string());
 
-            html! {
-                a href=(link) {
-                    (render_link_icon())
-                }
-            }
+    html! {
+        a href=(link) {
+            (icon)
         }
-        _ => PreEscaped(String::new()),
     }
-}
-
-fn render_link_icon() -> Markup {
-    // Copied from Iconoir collection
-    // Source:
-    // https://github.com/lucaburgio/iconoir/blob/2bbe1f011c3a968206c8378430f5721b5b5545f3/icons/link.svg
-    //
-    // Reused under the terms and conditions of MIT license
-    //
-    // Copyright (c) Luca Burgio 2021
-    PreEscaped(String::from(
-        r#"<svg stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 11.9976C14 9.5059 11.683 7 8.85714 7C8.52241 7 7.41904 7.00001 7.14286 7.00001C4.30254 7.00001 2 9.23752 2 11.9976C2 14.376 3.70973 16.3664 6 16.8714C6.36756 16.9525 6.75006 16.9952 7.14286 16.9952" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11.9976C10 14.4893 12.317 16.9952 15.1429 16.9952C15.4776 16.9952 16.581 16.9952 16.8571 16.9952C19.6975 16.9952 22 14.7577 22 11.9976C22 9.6192 20.2903 7.62884 18 7.12383C17.6324 7.04278 17.2499 6.99999 16.8571 6.99999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>"#,
-    ))
 }
 
 #[cfg(test)]
@@ -806,9 +823,9 @@ mod tests {
     }
 
     #[test]
-    fn render_headings_with_icon_anchors() {
+    fn render_headings_with_before_anchors() {
         let renderer = HtmlRenderer {
-            heading_anchors: HeadingAnchors::Icon,
+            heading_anchors: HeadingAnchors::Before("#"),
             current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
             link_map: &HashMap::new(),
             downloadables: &Downloadables::new(),
@@ -839,7 +856,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            r##"<h1 id="8cac60c274b9408cacbd0895cfd7b7f8"><a href="#8cac60c274b9408cacbd0895cfd7b7f8"><svg stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 11.9976C14 9.5059 11.683 7 8.85714 7C8.52241 7 7.41904 7.00001 7.14286 7.00001C4.30254 7.00001 2 9.23752 2 11.9976C2 14.376 3.70973 16.3664 6 16.8714C6.36756 16.9525 6.75006 16.9952 7.14286 16.9952" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11.9976C10 14.4893 12.317 16.9952 15.1429 16.9952C15.4776 16.9952 16.581 16.9952 16.8571 16.9952C19.6975 16.9952 22 14.7577 22 11.9976C22 9.6192 20.2903 7.62884 18 7.12383C17.6324 7.04278 17.2499 6.99999 16.8571 6.99999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></a>Cool test</h1>"##
+            r##"<h1 id="8cac60c274b9408cacbd0895cfd7b7f8"><a href="#8cac60c274b9408cacbd0895cfd7b7f8">#</a> Cool test</h1>"##
         );
         let guard = renderer.downloadables.set.guard();
         assert_eq!(
@@ -876,7 +893,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            r##"<h2 id="8042c69c49e7420ba49839b9d61c43d0"><a href="#8042c69c49e7420ba49839b9d61c43d0"><svg stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 11.9976C14 9.5059 11.683 7 8.85714 7C8.52241 7 7.41904 7.00001 7.14286 7.00001C4.30254 7.00001 2 9.23752 2 11.9976C2 14.376 3.70973 16.3664 6 16.8714C6.36756 16.9525 6.75006 16.9952 7.14286 16.9952" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11.9976C10 14.4893 12.317 16.9952 15.1429 16.9952C15.4776 16.9952 16.581 16.9952 16.8571 16.9952C19.6975 16.9952 22 14.7577 22 11.9976C22 9.6192 20.2903 7.62884 18 7.12383C17.6324 7.04278 17.2499 6.99999 16.8571 6.99999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></a>Cooler test</h2>"##
+            r##"<h2 id="8042c69c49e7420ba49839b9d61c43d0"><a href="#8042c69c49e7420ba49839b9d61c43d0">#</a> Cooler test</h2>"##
         );
         let guard = renderer.downloadables.set.guard();
         assert_eq!(
@@ -913,7 +930,54 @@ mod tests {
             .unwrap();
         assert_eq!(
             markup,
-            r##"<h3 id="7f54fffa61084a49b8e9587afe7ac08f"><a href="#7f54fffa61084a49b8e9587afe7ac08f"><svg stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 11.9976C14 9.5059 11.683 7 8.85714 7C8.52241 7 7.41904 7.00001 7.14286 7.00001C4.30254 7.00001 2 9.23752 2 11.9976C2 14.376 3.70973 16.3664 6 16.8714C6.36756 16.9525 6.75006 16.9952 7.14286 16.9952" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11.9976C10 14.4893 12.317 16.9952 15.1429 16.9952C15.4776 16.9952 16.581 16.9952 16.8571 16.9952C19.6975 16.9952 22 14.7577 22 11.9976C22 9.6192 20.2903 7.62884 18 7.12383C17.6324 7.04278 17.2499 6.99999 16.8571 6.99999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg></a>Coolest test</h3>"##
+            r##"<h3 id="7f54fffa61084a49b8e9587afe7ac08f"><a href="#7f54fffa61084a49b8e9587afe7ac08f">#</a> Coolest test</h3>"##
+        );
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::new()
+        );
+    }
+
+    #[test]
+    fn render_headings_with_after_anchors() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::After("#"),
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
+            link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
+        };
+
+        let block = Block {
+            object: "block".to_string(),
+            id: "8cac60c2-74b9-408c-acbd-0895cfd7b7f8".parse().unwrap(),
+            created_time: "2021-11-13T17:35:00.000Z".to_string(),
+            last_edited_time: "2021-11-13T19:02:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::HeadingOne {
+                text: vec![RichText {
+                    plain_text: "Cool test".to_string(),
+                    href: None,
+                    annotations: Default::default(),
+                    ty: RichTextType::Text {
+                        content: "Cool test".to_string(),
+                        link: None,
+                    },
+                }],
+            },
+        };
+        let markup = renderer
+            .render_block(&block, None, false)
+            .map(|markup| markup.into_string())
+            .unwrap();
+        assert_eq!(
+            markup,
+            r##"<h1 id="8cac60c274b9408cacbd0895cfd7b7f8">Cool test <a href="#8cac60c274b9408cacbd0895cfd7b7f8">#</a></h1>"##
         );
         let guard = renderer.downloadables.set.guard();
         assert_eq!(

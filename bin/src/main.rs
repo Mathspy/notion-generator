@@ -73,9 +73,12 @@ struct Opts {
     /// A level of verbosity, and can be used multiple times
     #[clap(short, long, parse(from_occurrences))]
     verbose: u8,
-    /// Whether to include a link icon next to headings or not
-    #[clap(long, default_value = "none")]
-    heading_anchors: HeadingAnchors,
+    /// Include an anchor before text of the headings
+    #[clap(long)]
+    heading_anchors_before: Option<PathBuf>,
+    /// Include an anchor after text of the headings, takes precedence over before
+    #[clap(long)]
+    heading_anchors_after: Option<PathBuf>,
     /// In case of rendering multiple notion pages into the same HTML page, this should
     /// contain the id of those other pages. Comma delimited list
     #[clap(long, require_delimiter = true, use_delimiter = true)]
@@ -116,9 +119,31 @@ async fn main() -> Result<()> {
     for current_page in opts.current_pages {
         current_pages.insert(current_page.parse()?);
     }
+
+    let heading_anchors_icon = match (&opts.heading_anchors_before, &opts.heading_anchors_after) {
+        (_, Some(path)) | (Some(path), _) => Some(
+            String::from_utf8(
+                tokio::fs::read(path)
+                    .await
+                    .context("Failed to read head partial")?,
+            )
+            .context("Failed to parse head partial as utf8")?,
+        ),
+        (None, None) => None,
+    };
+
+    let heading_anchors = if let Some(icon) = &heading_anchors_icon {
+        match (opts.heading_anchors_before, opts.heading_anchors_after) {
+            (_, Some(_)) => HeadingAnchors::After(icon),
+            (Some(_), None) => HeadingAnchors::Before(icon),
+            (None, None) => HeadingAnchors::None,
+        }
+    } else {
+        HeadingAnchors::None
+    };
     let downloadables = Downloadables::new();
     let renderer = HtmlRenderer {
-        heading_anchors: opts.heading_anchors,
+        heading_anchors,
         current_pages,
         link_map: &opts.link_map.0,
         downloadables: &downloadables,
