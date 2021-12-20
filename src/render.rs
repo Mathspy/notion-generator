@@ -2,8 +2,8 @@ use crate::download::{Downloadable, Downloadables, FILES_DIR};
 use crate::highlight::highlight;
 use crate::options::HeadingAnchors;
 use crate::response::{
-    Block, BlockType, EmojiOrFile, File, ListType, NotionId, Page, RichText, RichTextLink,
-    RichTextMentionType, RichTextType, Time,
+    Block, BlockType, EmojiOrFile, File, ListType, NotionId, Page, PlainText, RichText,
+    RichTextLink, RichTextMentionType, RichTextType, Time,
 };
 use anyhow::{Context, Result};
 use either::Either;
@@ -307,14 +307,11 @@ impl<'html> HtmlRenderer<'html> {
                     }
                 }
             }),
-            BlockType::Code { language, text } => highlight(
-                language,
-                &text
-                    .get(0)
-                    .context("Code block's RichText is empty")?
-                    .plain_text,
-                block.id,
-            ),
+            // TODO: We don't currently handle the possibility of rich text inside of code blocks
+            // this is complex because we need to create an HTML highlight renderer besides the one
+            // built into tree-sitter that knows how to render both rich text and highlights at the
+            // same time. Can likely reuse a lot of the code from RichTextRenderer
+            BlockType::Code { language, text } => highlight(language, &text.plain_text(), block.id),
             // The list items should only be reachable below if a block wasn't coalesced, thus it's
             // a list made of one item so we can safely render a list of one item
             BlockType::BulletedListItem { text, children } => Ok(html! {
@@ -346,16 +343,14 @@ impl<'html> HtmlRenderer<'html> {
                 // to be relative to the page where the HTML is rendered
                 let src = Path::new("/").join(&path);
                 let src = src.to_str().unwrap();
-                let markup = if let Some(caption) =
-                    caption.get(0).map(|rich_text| &rich_text.plain_text)
-                {
+                let markup = if !caption.is_empty() {
                     // Lack of alt text can be explained here
                     // https://stackoverflow.com/a/58468470/3018913
                     html! {
                         figure id=(block.id) {
                             img src=(src);
                             figcaption {
-                                (caption)
+                                (self.render_rich_text(caption))
                             }
                         }
                     }
@@ -1490,11 +1485,23 @@ mod tests {
                             },
                             caption: vec![
                                 RichText {
-                                    plain_text: "Circle rendered in Bevy".to_string(),
+                                    plain_text: "Circle rendered in ".to_string(),
                                     href: None,
                                     annotations: Default::default(),
                                     ty: RichTextType::Text {
-                                        content: "Circle rendered in Bevy".to_string(),
+                                        content: "Circle rendered in ".to_string(),
+                                        link: None,
+                                    },
+                                },
+                                RichText {
+                                    plain_text: "Bevy".to_string(),
+                                    href: None,
+                                    annotations: Annotations {
+                                        bold: true,
+                                        ..Default::default()
+                                    },
+                                    ty: RichTextType::Text {
+                                        content: "Bevy".to_string(),
                                         link: None,
                                     },
                                 },
@@ -1525,7 +1532,7 @@ mod tests {
         assert_eq!(
             markup,
             vec![
-                r#"<figure id="5ac94d7e25de4fa3a7810a43aac9d5c4"><img src="/media/5ac94d7e25de4fa3a7810a43aac9d5c4.png"><figcaption>Circle rendered in Bevy</figcaption></figure>"#,
+                r#"<figure id="5ac94d7e25de4fa3a7810a43aac9d5c4"><img src="/media/5ac94d7e25de4fa3a7810a43aac9d5c4.png"><figcaption>Circle rendered in <strong>Bevy</strong></figcaption></figure>"#,
                 r#"<img id="d1e5e2c543514b8e83a320ef532967a7" src="/media/d1e5e2c543514b8e83a320ef532967a7">"#
             ]
         );
