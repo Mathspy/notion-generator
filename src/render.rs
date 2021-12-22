@@ -482,7 +482,7 @@ impl<'html> HtmlRenderer<'html> {
         }
     }
 
-    fn render_rich_text(&self, rich_text: &[RichText]) -> Markup {
+    pub fn render_rich_text(&self, rich_text: &[RichText]) -> Markup {
         html! {
             @for segment in rich_text {
                 (RichTextRenderer::new(segment, self))
