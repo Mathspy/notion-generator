@@ -62,7 +62,7 @@ impl Downloadables {
 
     pub async fn download_all(self, client: Client, output: &Path) -> Result<()> {
         let downloads_dir = output.join(FILES_DIR);
-        tokio::fs::create_dir(&downloads_dir)
+        tokio::fs::create_dir_all(&downloads_dir)
             .await
             .with_context(|| format!("Failed to create dir {}", downloads_dir.display()))?;
 
