@@ -61,6 +61,10 @@ impl Downloadables {
     }
 
     pub async fn download_all(self, client: Client, output: &Path) -> Result<()> {
+        if self.set.is_empty() {
+            return Ok(());
+        }
+
         let downloads_dir = output.join(FILES_DIR);
         tokio::fs::create_dir_all(&downloads_dir)
             .await
