@@ -53,6 +53,11 @@ impl Downloadable {
 
         Ok(Downloadable { url, path })
     }
+
+    /// Return the path from root to the downloadable content
+    pub fn src_path(&self) -> String {
+        format!("/{}", self.path)
+    }
 }
 
 /// A list of things that needs downloading

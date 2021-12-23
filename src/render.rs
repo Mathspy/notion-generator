@@ -1,20 +1,18 @@
-use crate::download::{Downloadable, Downloadables, FILES_DIR};
+use crate::download::Downloadables;
 use crate::highlight::highlight;
 use crate::options::HeadingAnchors;
 use crate::response::{
-    Block, BlockType, EmojiOrFile, File, ListType, NotionId, Page, PlainText, RichText,
-    RichTextLink, RichTextMentionType, RichTextType, Time,
+    Block, BlockType, EmojiOrFile, ListType, NotionId, Page, PlainText, RichText, RichTextLink,
+    RichTextMentionType, RichTextType, Time,
 };
-use anyhow::{Context, Result};
+use anyhow::Result;
 use either::Either;
 use itertools::Itertools;
 use maud::{html, Escaper, Markup, PreEscaped, Render, DOCTYPE};
-use reqwest::Url;
 use std::collections::HashMap;
 use std::{
     collections::HashSet,
     fmt::{self, Write},
-    path::{Path, PathBuf},
 };
 
 pub struct HtmlRenderer<'html> {
@@ -335,20 +333,14 @@ impl<'html> HtmlRenderer<'html> {
                 }
             }),
             BlockType::Image { image, caption } => {
-                let (url, path) = get_downloadable_from_file(image, block.id)?;
+                let downloadable = image.as_downloadable(block.id)?;
 
-                // We need to create the return value before pushing the path
-                // so that we don't have to clone it
-                // Also we need the src path to be absolute because we don't want it
-                // to be relative to the page where the HTML is rendered
-                let src = Path::new("/").join(&path);
-                let src = src.to_str().unwrap();
                 let markup = if !caption.is_empty() {
                     // Lack of alt text can be explained here
                     // https://stackoverflow.com/a/58468470/3018913
                     html! {
                         figure id=(block.id) {
-                            img src=(src);
+                            img src=(downloadable.src_path());
                             figcaption {
                                 (self.render_rich_text(caption))
                             }
@@ -358,12 +350,11 @@ impl<'html> HtmlRenderer<'html> {
                     eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
 
                     html! {
-                        img id=(block.id) src=(src);
+                        img id=(block.id) src=(downloadable.src_path());
                     }
                 };
 
-                self.downloadables
-                    .insert(Downloadable::new(Url::parse(&url)?, path)?);
+                self.downloadables.insert(downloadable);
 
                 Ok(markup)
             }
@@ -388,16 +379,13 @@ impl<'html> HtmlRenderer<'html> {
                     EmojiOrFile::File(file) => {
                         eprintln!("WARNING: Using images as callout icon results in images that don't have accessible alt text");
 
-                        let (url, path) = get_downloadable_from_file(file, block.id)?;
-                        let src = Path::new("/").join(&path);
-                        let src = src.to_str().unwrap();
+                        let downloadable = file.as_downloadable(block.id)?;
 
                         let markup = html! {
-                            img src=(src);
+                            img src=(downloadable.src_path());
                         };
 
-                        self.downloadables
-                            .insert(Downloadable::new(Url::parse(&url)?, path)?);
+                        self.downloadables.insert(downloadable);
 
                         markup
                     }
@@ -491,31 +479,6 @@ impl<'html> HtmlRenderer<'html> {
             }
         }
     }
-}
-
-fn get_downloadable_from_file(file: &File, block_id: NotionId) -> Result<(String, PathBuf)> {
-    let url = match file {
-        File::Internal { url, .. } => url,
-        File::External { url } => url,
-    };
-
-    let parsed_url = Url::parse(url).context("Failed to parse image URL")?;
-    let ext = parsed_url
-        .path_segments()
-        .and_then(|segments| segments.last().map(Path::new).and_then(Path::extension));
-    // A path is the media directory + UUID + ext
-    // i.e media/eb39a20e10364469b750a9df8f4f18df.png
-    let block_id = block_id.to_string();
-    let mut path = PathBuf::with_capacity(
-        FILES_DIR.len() + block_id.len() + ext.map(|ext| ext.len()).unwrap_or(0),
-    );
-    path.push(FILES_DIR);
-    path.push(block_id);
-    if let Some(ext) = ext {
-        path.set_extension(ext);
-    }
-
-    Ok((url.clone(), path))
 }
 
 struct RichTextRenderer<'a> {
