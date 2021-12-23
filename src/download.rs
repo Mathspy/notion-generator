@@ -12,7 +12,7 @@ pub const FILES_DIR: &str = "media";
 #[derive(Clone, Debug, Eq)]
 pub struct Downloadable {
     url: Url,
-    path: PathBuf,
+    path: String,
 }
 
 impl PartialEq for Downloadable {
@@ -37,8 +37,21 @@ impl Hash for Downloadable {
 }
 
 impl Downloadable {
-    pub fn new(url: Url, path: PathBuf) -> Self {
-        Downloadable { url, path }
+    /// Create a new downloadable
+    ///
+    /// Errors if path is not valid UTF-8
+    pub fn new(url: Url, path: PathBuf) -> Result<Self> {
+        let path = path
+            .into_os_string()
+            .into_string()
+            .map_err(|invalid_path| {
+                anyhow::anyhow!(
+                    "Passed invalid downloadable path {}. Downloadable paths must be valid UTF-8",
+                    invalid_path.to_string_lossy()
+                )
+            })?;
+
+        Ok(Downloadable { url, path })
     }
 }
 
@@ -106,10 +119,7 @@ impl Downloadables {
 mod tests {
     use super::{Downloadable, Downloadables, FILES_DIR};
     use reqwest::Url;
-    use std::{
-        collections::HashSet,
-        path::{Path, PathBuf},
-    };
+    use std::{collections::HashSet, path::Path};
 
     #[test]
     fn can_extract() {
@@ -132,7 +142,7 @@ mod tests {
 
         iterator.for_each(|downloadable| {
             if let Some(downloadable) = downloadable {
-                downloadables.insert(downloadable);
+                downloadables.insert(downloadable.unwrap());
             }
         });
 
@@ -145,19 +155,19 @@ mod tests {
             HashSet::from([
                 &Downloadable {
                     url: Url::parse("https://gamediary.dev/0.png").unwrap(),
-                    path: PathBuf::from("media/A.png"),
+                    path: String::from("media/A.png"),
                 },
                 &Downloadable {
                     url: Url::parse("https://gamediary.dev/3.png").unwrap(),
-                    path: PathBuf::from("media/D.png"),
+                    path: String::from("media/D.png"),
                 },
                 &Downloadable {
                     url: Url::parse("https://gamediary.dev/6.png").unwrap(),
-                    path: PathBuf::from("media/G.png"),
+                    path: String::from("media/G.png"),
                 },
                 &Downloadable {
                     url: Url::parse("https://gamediary.dev/9.png").unwrap(),
-                    path: PathBuf::from("media/J.png"),
+                    path: String::from("media/J.png"),
                 },
             ])
         );

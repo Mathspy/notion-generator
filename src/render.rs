@@ -363,7 +363,7 @@ impl<'html> HtmlRenderer<'html> {
                 };
 
                 self.downloadables
-                    .insert(Downloadable::new(Url::parse(&url)?, path));
+                    .insert(Downloadable::new(Url::parse(&url)?, path)?);
 
                 Ok(markup)
             }
@@ -397,7 +397,7 @@ impl<'html> HtmlRenderer<'html> {
                         };
 
                         self.downloadables
-                            .insert(Downloadable::new(Url::parse(&url)?, path));
+                            .insert(Downloadable::new(Url::parse(&url)?, path)?);
 
                         markup
                     }
@@ -1552,11 +1552,11 @@ mod tests {
                         "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/efbb73c3-2df3-4365-bcf3-cc9ece431127/circle.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211121%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211121T134120Z&X-Amz-Expires=3600&X-Amz-Signature=9ea689335e9054f55c794c7609f9c9c057c80484cd06eaf9dff9641d92e923c8&X-Amz-SignedHeaders=host&x-id=GetObject"
                     ).unwrap(),
                     PathBuf::from("media/5ac94d7e25de4fa3a7810a43aac9d5c4.png"),
-                ),
+                ).unwrap(),
                 &Downloadable::new(
                     Url::parse("https://mathspy.me/random-file").unwrap(),
                     PathBuf::from("media/d1e5e2c543514b8e83a320ef532967a7"),
-                ),
+                ).unwrap(),
             ])
         );
     }
@@ -1668,11 +1668,13 @@ mod tests {
                 &Downloadable::new(
                     Url::parse("https://example.com/hehe.gif").unwrap(),
                     PathBuf::from("media/28c719a398454f089e871fe78e50e92b.gif"),
-                ),
+                )
+                .unwrap(),
                 &Downloadable::new(
                     Url::parse("https://example.com").unwrap(),
                     PathBuf::from("media/66ea73701a3b4f4eada53be2f7e6ef73"),
-                ),
+                )
+                .unwrap(),
             ])
         );
     }
