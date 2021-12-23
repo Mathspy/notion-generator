@@ -526,6 +526,11 @@ impl<'a> Render for RichTextRenderer<'a> {
                             let mut escaper = Escaper::new(&mut escaped_link);
                             escaper.write_str(url).expect("unreachable");
                             buffer.push_str(&escaped_link);
+
+                            // Ensure external links open in a new tab
+                            // We close href's string and then put target and rel. Rel's string
+                            // still needs to be closed and so that will happen below
+                            buffer.push_str(r#"" target="_blank" rel="noreferrer noopener"#);
                         }
                         RichTextLink::Internal { page, block } => {
                             match (self.current_pages.contains(page), block) {
@@ -1719,7 +1724,7 @@ mod tests {
             RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
-            r#"<span class="underline"><a href="https://cool.website/">boring text</a></span>"#
+            r#"<span class="underline"><a href="https://cool.website/" target="_blank" rel="noreferrer noopener">boring text</a></span>"#
         );
 
         let text = RichText {
@@ -1744,7 +1749,7 @@ mod tests {
             RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
-            r#"<strong><em><del><span class="underline"><code><a href="https://very.angry/&gt;&lt;">Thanks Notion &lt;:angry_face:&gt;</a></code></span></del></em></strong>"#,
+            r#"<strong><em><del><span class="underline"><code><a href="https://very.angry/&gt;&lt;" target="_blank" rel="noreferrer noopener">Thanks Notion &lt;:angry_face:&gt;</a></code></span></del></em></strong>"#,
         );
 
         let text = RichText {
