@@ -96,7 +96,7 @@ impl PlainText for Vec<&RichText> {
 }
 
 mod deserializers {
-    use super::{PageParent, RichTextLink, Time};
+    use super::{File, PageParent, RichTextLink, Time};
     use either::Either;
     use serde::{
         de::{Error, Unexpected},
@@ -234,6 +234,19 @@ mod deserializers {
                 &r#"expected `type` to be one of "database_id", "page_id", "workspace""#,
             )),
         }
+    }
+
+    pub fn optional_file<'a, D: Deserializer<'a>>(
+        deserializer: D,
+    ) -> Result<Option<File>, D::Error> {
+        #[derive(Deserialize)]
+        struct RawFile {
+            #[serde(flatten)]
+            file: File,
+        }
+
+        <Option<RawFile>>::deserialize(deserializer)
+            .map(|option| option.map(|RawFile { file }| file))
     }
 }
 
@@ -385,7 +398,7 @@ pub struct Page<P> {
     pub last_edited_time: String,
     pub archived: bool,
     pub icon: Option<EmojiOrFile>,
-    #[serde(flatten)]
+    #[serde(deserialize_with = "deserializers::optional_file")]
     pub cover: Option<File>,
     pub properties: P,
     #[serde(deserialize_with = "deserializers::page_parent")]
@@ -1347,7 +1360,10 @@ mod tests {
                 id: "ac3fb543-001f-4be5-a25e-4978abd05b1d".parse().unwrap(),
                 created_time: "2021-11-29T18:20:00.000Z".to_string(),
                 last_edited_time: "2021-12-06T09:25:00.000Z".to_string(),
-                cover: None,
+                cover: Some(File::Internal {
+                    url: "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/2044fff8-de9e-418b-a7c5-6f0075c0564f/entity_component_system_better.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211213%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211213T134329Z&X-Amz-Expires=3600&X-Amz-Signature=ab03b81b8492949ad6b0357cfcabbb1fd3990b061084f8b4b385695613a6548f&X-Amz-SignedHeaders=host&x-id=GetObject".to_string(),
+                    expiry_time: "2021-12-13T14:43:29.267Z".to_string(),
+                }),
                 icon: None,
                 archived: false,
                 properties: Properties {
