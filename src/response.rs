@@ -773,6 +773,41 @@ pub enum File {
     External { url: String },
 }
 
+impl File {
+    pub fn as_downloadable(
+        &self,
+        block_id: NotionId,
+    ) -> Result<crate::download::Downloadable, anyhow::Error> {
+        use crate::download::{Downloadable, FILES_DIR};
+        use anyhow::Context;
+        use reqwest::Url;
+        use std::path::{Path, PathBuf};
+
+        let url = match self {
+            File::Internal { url, .. } => url,
+            File::External { url } => url,
+        };
+
+        let parsed_url = Url::parse(url).context("Failed to parse image URL")?;
+        let ext = parsed_url
+            .path_segments()
+            .and_then(|segments| segments.last().map(Path::new).and_then(Path::extension));
+        // A path is the media directory + UUID + ext
+        // i.e media/eb39a20e10364469b750a9df8f4f18df.png
+        let block_id = block_id.to_string();
+        let mut path = PathBuf::with_capacity(
+            FILES_DIR.len() + block_id.len() + ext.map(|ext| ext.len()).unwrap_or(0),
+        );
+        path.push(FILES_DIR);
+        path.push(block_id);
+        if let Some(ext) = ext {
+            path.set_extension(ext);
+        };
+
+        Downloadable::new(parsed_url, path)
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum EmojiOrFile {

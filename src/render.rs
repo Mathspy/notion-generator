@@ -1,20 +1,18 @@
-use crate::download::{Downloadable, Downloadables, FILES_DIR};
+use crate::download::Downloadables;
 use crate::highlight::highlight;
 use crate::options::HeadingAnchors;
 use crate::response::{
-    Block, BlockType, EmojiOrFile, File, ListType, NotionId, Page, PlainText, RichText,
-    RichTextLink, RichTextMentionType, RichTextType, Time,
+    Block, BlockType, EmojiOrFile, ListType, NotionId, Page, PlainText, RichText, RichTextLink,
+    RichTextMentionType, RichTextType, Time,
 };
-use anyhow::{Context, Result};
+use anyhow::Result;
 use either::Either;
 use itertools::Itertools;
 use maud::{html, Escaper, Markup, PreEscaped, Render, DOCTYPE};
-use reqwest::Url;
 use std::collections::HashMap;
 use std::{
     collections::HashSet,
     fmt::{self, Write},
-    path::{Path, PathBuf},
 };
 
 pub struct HtmlRenderer<'html> {
@@ -335,20 +333,14 @@ impl<'html> HtmlRenderer<'html> {
                 }
             }),
             BlockType::Image { image, caption } => {
-                let (url, path) = get_downloadable_from_file(image, block.id)?;
+                let downloadable = image.as_downloadable(block.id)?;
 
-                // We need to create the return value before pushing the path
-                // so that we don't have to clone it
-                // Also we need the src path to be absolute because we don't want it
-                // to be relative to the page where the HTML is rendered
-                let src = Path::new("/").join(&path);
-                let src = src.to_str().unwrap();
                 let markup = if !caption.is_empty() {
                     // Lack of alt text can be explained here
                     // https://stackoverflow.com/a/58468470/3018913
                     html! {
                         figure id=(block.id) {
-                            img src=(src);
+                            img src=(downloadable.src_path());
                             figcaption {
                                 (self.render_rich_text(caption))
                             }
@@ -358,11 +350,11 @@ impl<'html> HtmlRenderer<'html> {
                     eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
 
                     html! {
-                        img id=(block.id) src=(src);
+                        img id=(block.id) src=(downloadable.src_path());
                     }
                 };
 
-                self.downloadables.insert(Downloadable::new(url, path));
+                self.downloadables.insert(downloadable);
 
                 Ok(markup)
             }
@@ -387,15 +379,13 @@ impl<'html> HtmlRenderer<'html> {
                     EmojiOrFile::File(file) => {
                         eprintln!("WARNING: Using images as callout icon results in images that don't have accessible alt text");
 
-                        let (url, path) = get_downloadable_from_file(file, block.id)?;
-                        let src = Path::new("/").join(&path);
-                        let src = src.to_str().unwrap();
+                        let downloadable = file.as_downloadable(block.id)?;
 
                         let markup = html! {
-                            img src=(src);
+                            img src=(downloadable.src_path());
                         };
 
-                        self.downloadables.insert(Downloadable::new(url, path));
+                        self.downloadables.insert(downloadable);
 
                         markup
                     }
@@ -489,31 +479,6 @@ impl<'html> HtmlRenderer<'html> {
             }
         }
     }
-}
-
-fn get_downloadable_from_file(file: &File, block_id: NotionId) -> Result<(String, PathBuf)> {
-    let url = match file {
-        File::Internal { url, .. } => url,
-        File::External { url } => url,
-    };
-
-    let parsed_url = Url::parse(url).context("Failed to parse image URL")?;
-    let ext = parsed_url
-        .path_segments()
-        .and_then(|segments| segments.last().map(Path::new).and_then(Path::extension));
-    // A path is the media directory + UUID + ext
-    // i.e media/eb39a20e10364469b750a9df8f4f18df.png
-    let block_id = block_id.to_string();
-    let mut path = PathBuf::with_capacity(
-        FILES_DIR.len() + block_id.len() + ext.map(|ext| ext.len()).unwrap_or(0),
-    );
-    path.push(FILES_DIR);
-    path.push(block_id);
-    if let Some(ext) = ext {
-        path.set_extension(ext);
-    }
-
-    Ok((url.clone(), path))
 }
 
 struct RichTextRenderer<'a> {
@@ -706,6 +671,7 @@ mod tests {
     use either::Either;
     use maud::Render;
     use pretty_assertions::assert_eq;
+    use reqwest::Url;
     use std::{
         collections::{HashMap, HashSet},
         path::PathBuf,
@@ -1545,13 +1511,15 @@ mod tests {
                 .collect::<HashSet<&Downloadable>>(),
             HashSet::from([
                 &Downloadable::new(
-                    "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/efbb73c3-2df3-4365-bcf3-cc9ece431127/circle.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211121%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211121T134120Z&X-Amz-Expires=3600&X-Amz-Signature=9ea689335e9054f55c794c7609f9c9c057c80484cd06eaf9dff9641d92e923c8&X-Amz-SignedHeaders=host&x-id=GetObject".to_string(),
+                    Url::parse(
+                        "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/efbb73c3-2df3-4365-bcf3-cc9ece431127/circle.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20211121%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20211121T134120Z&X-Amz-Expires=3600&X-Amz-Signature=9ea689335e9054f55c794c7609f9c9c057c80484cd06eaf9dff9641d92e923c8&X-Amz-SignedHeaders=host&x-id=GetObject"
+                    ).unwrap(),
                     PathBuf::from("media/5ac94d7e25de4fa3a7810a43aac9d5c4.png"),
-                ),
+                ).unwrap(),
                 &Downloadable::new(
-                    "https://mathspy.me/random-file".to_string(),
+                    Url::parse("https://mathspy.me/random-file").unwrap(),
                     PathBuf::from("media/d1e5e2c543514b8e83a320ef532967a7"),
-                ),
+                ).unwrap(),
             ])
         );
     }
@@ -1661,13 +1629,15 @@ mod tests {
                 .collect::<HashSet<&Downloadable>>(),
             HashSet::from([
                 &Downloadable::new(
-                    "https://example.com/hehe.gif".to_string(),
+                    Url::parse("https://example.com/hehe.gif").unwrap(),
                     PathBuf::from("media/28c719a398454f089e871fe78e50e92b.gif"),
-                ),
+                )
+                .unwrap(),
                 &Downloadable::new(
-                    "https://example.com".to_string(),
+                    Url::parse("https://example.com").unwrap(),
                     PathBuf::from("media/66ea73701a3b4f4eada53be2f7e6ef73"),
-                ),
+                )
+                .unwrap(),
             ])
         );
     }

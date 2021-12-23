@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use flurry::HashSet;
 use futures_util::stream::{FuturesUnordered, TryStreamExt};
-use reqwest::Client;
+use reqwest::{Client, Url};
 use std::{
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
@@ -11,8 +11,8 @@ pub const FILES_DIR: &str = "media";
 
 #[derive(Clone, Debug, Eq)]
 pub struct Downloadable {
-    url: String,
-    path: PathBuf,
+    url: Url,
+    path: String,
 }
 
 impl PartialEq for Downloadable {
@@ -37,8 +37,26 @@ impl Hash for Downloadable {
 }
 
 impl Downloadable {
-    pub fn new(url: String, path: PathBuf) -> Self {
-        Downloadable { url, path }
+    /// Create a new downloadable
+    ///
+    /// Errors if path is not valid UTF-8
+    pub fn new(url: Url, path: PathBuf) -> Result<Self> {
+        let path = path
+            .into_os_string()
+            .into_string()
+            .map_err(|invalid_path| {
+                anyhow::anyhow!(
+                    "Passed invalid downloadable path {}. Downloadable paths must be valid UTF-8",
+                    invalid_path.to_string_lossy()
+                )
+            })?;
+
+        Ok(Downloadable { url, path })
+    }
+
+    /// Return the path from root to the downloadable content
+    pub fn src_path(&self) -> String {
+        format!("/{}", self.path)
     }
 }
 
@@ -85,7 +103,7 @@ impl Downloadables {
                 .iter(&guard)
                 .map(Clone::clone)
                 .map(|downloadable| async move {
-                    let response = client_ref.get(&downloadable.url).send().await?;
+                    let response = client_ref.get(downloadable.url).send().await?;
                     let bytes = response.bytes().await?;
                     let destination = output.join(&downloadable.path);
                     tokio::fs::write(&destination, bytes.as_ref())
@@ -105,10 +123,8 @@ impl Downloadables {
 #[cfg(test)]
 mod tests {
     use super::{Downloadable, Downloadables, FILES_DIR};
-    use std::{
-        collections::HashSet,
-        path::{Path, PathBuf},
-    };
+    use reqwest::Url;
+    use std::{collections::HashSet, path::Path};
 
     #[test]
     fn can_extract() {
@@ -121,7 +137,7 @@ mod tests {
                 path.set_extension("png");
 
                 Some(Downloadable::new(
-                    format!("https://gamediary.dev/{}.png", i),
+                    Url::parse(&format!("https://gamediary.dev/{}.png", i)).unwrap(),
                     path,
                 ))
             } else {
@@ -131,7 +147,7 @@ mod tests {
 
         iterator.for_each(|downloadable| {
             if let Some(downloadable) = downloadable {
-                downloadables.insert(downloadable);
+                downloadables.insert(downloadable.unwrap());
             }
         });
 
@@ -143,20 +159,20 @@ mod tests {
                 .collect::<HashSet<&Downloadable>>(),
             HashSet::from([
                 &Downloadable {
-                    url: "https://gamediary.dev/0.png".to_string(),
-                    path: PathBuf::from("media/A.png"),
+                    url: Url::parse("https://gamediary.dev/0.png").unwrap(),
+                    path: String::from("media/A.png"),
                 },
                 &Downloadable {
-                    url: "https://gamediary.dev/3.png".to_string(),
-                    path: PathBuf::from("media/D.png"),
+                    url: Url::parse("https://gamediary.dev/3.png").unwrap(),
+                    path: String::from("media/D.png"),
                 },
                 &Downloadable {
-                    url: "https://gamediary.dev/6.png".to_string(),
-                    path: PathBuf::from("media/G.png"),
+                    url: Url::parse("https://gamediary.dev/6.png").unwrap(),
+                    path: String::from("media/G.png"),
                 },
                 &Downloadable {
-                    url: "https://gamediary.dev/9.png".to_string(),
-                    path: PathBuf::from("media/J.png"),
+                    url: Url::parse("https://gamediary.dev/9.png").unwrap(),
+                    path: String::from("media/J.png"),
                 },
             ])
         );
