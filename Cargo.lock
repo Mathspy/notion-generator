@@ -1078,9 +1078,8 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 
 [[package]]
 name = "reqwest"
-version = "0.11.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07bea77bc708afa10e59905c3d4af7c8fd43c9214251673095ff8b14345fcbc5"
+version = "0.11.8"
+source = "git+https://github.com/Mathspy/reqwest?branch=impl-service-for-client#1f74d4fe013c8b21adaad07a39d800565bc228b0"
 dependencies = [
  "base64",
  "bytes",
@@ -1106,6 +1105,7 @@ dependencies = [
  "serde_urlencoded",
  "tokio",
  "tokio-rustls",
+ "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",

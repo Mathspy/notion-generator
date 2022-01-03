@@ -4,28 +4,11 @@ use async_recursion::async_recursion;
 use futures_util::stream::{FuturesOrdered, TryStreamExt};
 use reqwest::{Client, Method, Request};
 use serde::{Deserialize, Serialize};
-use std::{future::Future, ops::Not, pin::Pin, task};
+use std::ops::Not;
 use tower::{buffer::Buffer, limit::RateLimit, Service, ServiceExt};
 
-struct NotionService {
-    client: Client,
-}
-
-impl Service<Request> for NotionService {
-    type Response = reqwest::Response;
-    type Error = reqwest::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + Sync>>;
-
-    fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> task::Poll<Result<(), Self::Error>> {
-        task::Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: Request) -> Self::Future {
-        Box::pin(self.client.execute(req))
-    }
-}
 pub struct NotionClient {
-    svc: Buffer<RateLimit<NotionService>, Request>,
+    svc: Buffer<RateLimit<Client>, Request>,
     auth_token: String,
 }
 
@@ -111,15 +94,14 @@ mod request {
 use request::RequestBuilder;
 
 impl NotionClient {
-    fn make_service(client: Client) -> Buffer<RateLimit<NotionService>, Request> {
+    fn make_service(client: Client) -> Buffer<RateLimit<Client>, Request> {
         use std::time::Duration;
         use tower::Layer;
 
         tower::buffer::BufferLayer::new(16).layer(
             // The current Notion rate limit is 3 requests per second
             // Reference: https://developers.notion.com/reference/errors#rate-limits
-            tower::limit::RateLimitLayer::new(3, Duration::new(1, 0))
-                .layer(NotionService { client }),
+            tower::limit::RateLimitLayer::new(3, Duration::new(1, 0)).layer(client),
         )
     }
 
