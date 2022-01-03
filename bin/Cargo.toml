@@ -10,6 +10,7 @@ rust-version = "1.57"
 anyhow = { version = "1" }
 clap = { version = "3.0.0-rc.1", features = ["derive"] }
 notion-generator = { path = "../" }
+reqwest = { git = "https://github.com/Mathspy/reqwest", branch = "impl-service-for-client", default-features = false }
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
 
 [[bin]]

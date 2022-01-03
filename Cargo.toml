@@ -19,7 +19,7 @@ futures-util = { version = "0.3" }
 itertools = { version = "0.10" }
 katex = { version = "0.4" }
 maud = { version = "0.23" }
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls-native-roots"] }
+reqwest = { git = "https://github.com/Mathspy/reqwest", branch = "impl-service-for-client", default-features = false, features = ["json", "rustls-tls-native-roots", "tower"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 tokio = { version = "1", features = ["fs"] }
@@ -27,6 +27,7 @@ tree-sitter = { version = "0.20" }
 tree-sitter-highlight = { version = "0.20" }
 tree-sitter-rust = { version = "0.20" }
 uuid = { version = "0.8", features = ["serde"] }
+tower = { version = "0.4", features = ["buffer", "limit", "util"] }
 
 [dev-dependencies]
 pretty_assertions = { version = "1" }

@@ -1,32 +1,127 @@
 use crate::response::{Block, Error, List, NotionId, Page};
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, format_err, Context, Result};
 use async_recursion::async_recursion;
 use futures_util::stream::{FuturesOrdered, TryStreamExt};
-use reqwest::{Client, Method, RequestBuilder};
+use reqwest::{Client, Method, Request};
 use serde::{Deserialize, Serialize};
 use std::ops::Not;
+use tower::{buffer::Buffer, limit::RateLimit, Service, ServiceExt};
 
 pub struct NotionClient {
-    client: Client,
+    svc: Buffer<RateLimit<Client>, Request>,
     auth_token: String,
 }
 
+mod request {
+    use anyhow::Result;
+    use reqwest::{
+        header::{HeaderName, HeaderValue, InvalidHeaderName, InvalidHeaderValue},
+        Body, Method, Request,
+    };
+    use serde::Serialize;
+    use std::fmt::Display;
+
+    pub(crate) struct RequestBuilder {
+        request: Request,
+    }
+
+    impl RequestBuilder {
+        pub(crate) fn new(method: Method, url: &str) -> Result<Self> {
+            Ok(Self {
+                request: Request::new(method, url.parse()?),
+            })
+        }
+
+        pub(crate) fn header<K, V>(self, key: K, value: V) -> Result<Self>
+        where
+            K: TryInto<HeaderName, Error = InvalidHeaderName>,
+            V: TryInto<HeaderValue, Error = InvalidHeaderValue>,
+        {
+            let mut request = self.request;
+
+            let headers = request.headers_mut();
+            headers.insert(key.try_into()?, value.try_into()?);
+
+            Ok(Self { request })
+        }
+
+        pub(crate) fn bearer_auth<T>(self, token: T) -> Result<Self>
+        where
+            T: Display,
+        {
+            let mut request = self.request;
+
+            let headers = request.headers_mut();
+            headers.insert("Authorization", format!("Bearer {}", token).try_into()?);
+
+            Ok(Self { request })
+        }
+
+        pub(crate) fn query(self, query: &[(&'static str, Option<&str>)]) -> Self {
+            let mut request = self.request;
+
+            {
+                let url = request.url_mut();
+                let mut current = url.query_pairs_mut();
+                query.iter().for_each(|(name, value)| {
+                    if let Some(value) = value {
+                        current.append_pair(name, value);
+                    }
+                });
+            }
+
+            Self { request }
+        }
+
+        pub(crate) fn json<T>(self, json: &T) -> Result<Self>
+        where
+            T: Serialize,
+        {
+            let mut request = self.request;
+
+            let body = request.body_mut();
+
+            *body = Some(Body::from(serde_json::to_vec(json)?));
+
+            Ok(Self { request })
+        }
+
+        pub(crate) fn build(self) -> Request {
+            self.request
+        }
+    }
+}
+use request::RequestBuilder;
+
 impl NotionClient {
+    fn make_service(client: Client) -> Buffer<RateLimit<Client>, Request> {
+        use std::time::Duration;
+        use tower::Layer;
+
+        tower::buffer::BufferLayer::new(16).layer(
+            // The current Notion rate limit is 3 requests per second
+            // Reference: https://developers.notion.com/reference/errors#rate-limits
+            tower::limit::RateLimitLayer::new(3, Duration::new(1, 0)).layer(client),
+        )
+    }
+
     pub fn new(auth_token: String) -> Self {
         NotionClient {
-            client: Client::new(),
+            svc: Self::make_service(Client::new()),
             auth_token,
         }
     }
 
     pub fn with_client(client: Client, auth_token: String) -> Self {
-        NotionClient { client, auth_token }
+        NotionClient {
+            svc: Self::make_service(client),
+            auth_token,
+        }
     }
 
-    fn build_request(&self, method: Method, url: &str) -> RequestBuilder {
-        self.client
-            .request(method, url)
-            .header("Notion-Version", "2021-08-16")
+    fn build_request(&self, method: Method, url: &str) -> Result<RequestBuilder> {
+        RequestBuilder::new(method, url)?
+            .header("Notion-Version", "2021-08-16")?
             .bearer_auth(&self.auth_token)
     }
 
@@ -34,9 +129,15 @@ impl NotionClient {
     where
         R: for<'de> Deserialize<'de>,
     {
-        let response = request
-            .send()
+        let response = self
+            .svc
+            .clone()
+            .ready()
             .await
+            .map_err(|error| format_err!(error))?
+            .call(request.build())
+            .await
+            .map_err(|error| format_err!(error))
             .with_context(|| format!("Failed to get data for request {}", url))?;
 
         if response.status().is_success().not() {
@@ -75,7 +176,7 @@ impl NotionClient {
             let list = self
                 .send_request::<List<Block>>(
                     &url,
-                    self.build_request(Method::GET, &url).query(&[
+                    self.build_request(Method::GET, &url)?.query(&[
                         ("page_size", Some("100")),
                         ("start_cursor", cursor.as_deref()),
                     ]),
@@ -125,11 +226,11 @@ impl NotionClient {
             let list = self
                 .send_request::<List<Page<P>>>(
                     &url,
-                    self.build_request(Method::POST, &url)
+                    self.build_request(Method::POST, &url)?
                         .json(&QueryDatabaseRequestBody {
                             start_cursor: cursor.as_deref(),
                             page_size: 100,
-                        }),
+                        })?,
                 )
                 .await?;
 
@@ -151,9 +252,5 @@ impl NotionClient {
                 return output.try_collect().await;
             }
         }
-    }
-
-    pub fn client(&self) -> &Client {
-        &self.client
     }
 }
