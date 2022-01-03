@@ -27,6 +27,7 @@ tree-sitter = { version = "0.20" }
 tree-sitter-highlight = { version = "0.20" }
 tree-sitter-rust = { version = "0.20" }
 uuid = { version = "0.8", features = ["serde"] }
+tower = { version = "0.4", features = ["buffer", "limit", "util"] }
 
 [dev-dependencies]
 pretty_assertions = { version = "1" }
