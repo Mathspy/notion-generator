@@ -11,6 +11,86 @@ pub struct NotionClient {
     auth_token: String,
 }
 
+mod request {
+    use anyhow::Result;
+    use reqwest::{
+        header::{HeaderName, HeaderValue, InvalidHeaderName, InvalidHeaderValue},
+        Body, Method, Request,
+    };
+    use serde::Serialize;
+    use std::fmt::Display;
+
+    pub(crate) struct RequestBuilder {
+        request: Request,
+    }
+
+    impl RequestBuilder {
+        pub(crate) fn new(method: Method, url: &str) -> Result<Self> {
+            Ok(Self {
+                request: Request::new(method, url.parse()?),
+            })
+        }
+
+        pub(crate) fn header<K, V>(self, key: K, value: V) -> Result<Self>
+        where
+            K: TryInto<HeaderName, Error = InvalidHeaderName>,
+            V: TryInto<HeaderValue, Error = InvalidHeaderValue>,
+        {
+            let mut request = self.request;
+
+            let headers = request.headers_mut();
+            headers.insert(key.try_into()?, value.try_into()?);
+
+            Ok(Self { request })
+        }
+
+        pub(crate) fn bearer_auth<T>(self, token: T) -> Result<Self>
+        where
+            T: Display,
+        {
+            let mut request = self.request;
+
+            let headers = request.headers_mut();
+            headers.insert("Authorization", format!("Bearer {}", token).try_into()?);
+
+            Ok(Self { request })
+        }
+
+        pub(crate) fn query(self, query: &[(&'static str, Option<&str>)]) -> Self {
+            let mut request = self.request;
+
+            {
+                let url = request.url_mut();
+                let mut current = url.query_pairs_mut();
+                query.iter().for_each(|(name, value)| {
+                    if let Some(value) = value {
+                        current.append_pair(name, value);
+                    }
+                });
+            }
+
+            Self { request }
+        }
+
+        pub(crate) fn json<T>(self, json: &T) -> Result<Self>
+        where
+            T: Serialize,
+        {
+            let mut request = self.request;
+
+            let body = request.body_mut();
+
+            *body = Some(Body::from(serde_json::to_vec(json)?));
+
+            Ok(Self { request })
+        }
+
+        pub(crate) fn build(self) -> Request {
+            self.request
+        }
+    }
+}
+
 impl NotionClient {
     pub fn new(auth_token: String) -> Self {
         NotionClient {
