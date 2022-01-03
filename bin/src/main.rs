@@ -95,7 +95,8 @@ async fn main() -> Result<()> {
     let opts: Opts = Opts::parse();
     let auth_token = std::env::var("NOTION_TOKEN").context("Missing NOTION_TOKEN env variable")?;
 
-    let client = NotionClient::new(auth_token);
+    let reqwest_client = reqwest::Client::new();
+    let client = NotionClient::with_client(reqwest_client.clone(), auth_token);
 
     let document_id = opts
         .document_id
@@ -162,7 +163,7 @@ async fn main() -> Result<()> {
 
     tokio::try_join!(
         write_markup,
-        downloadables.download_all(client.client().clone(), &opts.output)
+        downloadables.download_all(reqwest_client, &opts.output)
     )?;
 
     Ok(())
