@@ -2,10 +2,28 @@ use crate::response::{Block, Error, List, NotionId, Page};
 use anyhow::{bail, Context, Result};
 use async_recursion::async_recursion;
 use futures_util::stream::{FuturesOrdered, TryStreamExt};
-use reqwest::{Client, Method, RequestBuilder};
+use reqwest::{Client, Method, Request, RequestBuilder};
 use serde::{Deserialize, Serialize};
-use std::ops::Not;
+use std::{future::Future, ops::Not, pin::Pin, task};
+use tower::Service;
 
+struct NotionService {
+    client: Client,
+}
+
+impl Service<Request> for NotionService {
+    type Response = reqwest::Response;
+    type Error = reqwest::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + Sync>>;
+
+    fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> task::Poll<Result<(), Self::Error>> {
+        task::Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: Request) -> Self::Future {
+        Box::pin(self.client.execute(req))
+    }
+}
 pub struct NotionClient {
     client: Client,
     auth_token: String,
