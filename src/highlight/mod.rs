@@ -99,4 +99,19 @@ mod tests {
 I hope you have a great day!</code></pre>"#
         );
     }
+
+    #[test]
+    fn rust_type_builtin() {
+        assert_eq!(
+            highlight(
+                &Language::Rust,
+                r#"const x: &str = "abc";"#,
+                "5e845049255f423296fd6f20449be0bc".parse().unwrap()
+            )
+            .unwrap()
+            .into_string(),
+            r#"<pre id="5e845049255f423296fd6f20449be0bc" class="rust"><code class="rust"><span class="keyword">const</span> <span class="variable">x</span>: <span class="operator">&amp;</span><span class="type-builtin">str</span> <span class="operator">=</span> <span class="string">&quot;abc&quot;</span><span class="punctuation">;</span>
+</code></pre>"#
+        );
+    }
 }
