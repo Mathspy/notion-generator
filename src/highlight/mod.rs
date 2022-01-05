@@ -124,6 +124,29 @@ I hope you have a great day!</code></pre>"#
     }
 
     #[test]
+    fn rust_attributes() {
+        assert_eq!(
+            highlight(
+                &Language::Rust,
+                r#"#[derive(Parser, Serialize)]
+struct Opts {
+    #[clap(short, long, default_value = "partials/head.html")]
+    head: PathBuf,
+}"#,
+                "5e845049255f423296fd6f20449be0bc".parse().unwrap()
+            )
+            .unwrap()
+            .into_string(),
+            r#"<pre id="5e845049255f423296fd6f20449be0bc" class="rust"><code class="rust"><span class="attribute">#<span class="punctuation">[</span><span class="variable">derive</span><span class="punctuation">(</span><span class="type">Parser</span>, <span class="type">Serialize</span><span class="punctuation">)</span><span class="punctuation">]</span></span>
+<span class="keyword">struct</span> <span class="type">Opts</span> <span class="punctuation">{</span>
+    <span class="attribute">#<span class="punctuation">[</span><span class="variable">clap</span><span class="punctuation">(</span><span class="variable">short</span>, <span class="variable">long</span>, <span class="variable">default_value</span> <span class="operator">=</span> <span class="string">&quot;partials/head.html&quot;</span><span class="punctuation">)</span><span class="punctuation">]</span></span>
+    <span class="variable">head</span>: <span class="type">PathBuf</span>,
+<span class="punctuation">}</span>
+</code></pre>"#
+        )
+    }
+
+    #[test]
     fn toml_via_hack() {
         assert_eq!(
             highlight(
