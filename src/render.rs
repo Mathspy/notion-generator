@@ -1283,7 +1283,7 @@ mod tests {
                 + "\n"
                 + r#"    <span class="keyword">return</span> <span class="type">Magic</span> <span class="punctuation">{</span>"#
                 + "\n"
-                + r#"        <span class="variable">value</span>: <span class="constant">100</span>"#
+                + r#"        <span class="variable">value</span>: <span class="constant numeric">100</span>"#
                 + "\n"
                 + r#"    <span class="punctuation">}</span><span class="punctuation">;</span>"#
                 + "\n"

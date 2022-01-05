@@ -5,10 +5,11 @@ use tree_sitter_highlight::{HighlightConfiguration, Highlighter, HtmlRenderer};
 
 const RUST_HIGHLIGHTS: &str = include_str!("./rust.scm");
 
-const HIGHLIGHTS: [&str; 14] = [
+const HIGHLIGHTS: [&str; 15] = [
     "attribute",
     "comment",
     "constant",
+    "constant.numeric",
     "function",
     "keyword",
     "label",
@@ -159,8 +160,8 @@ const z: f32 = 1.0;"#,
             .unwrap()
             .into_string(),
             r#"<pre id="5e845049255f423296fd6f20449be0bc" class="rust"><code class="rust"><span class="keyword">const</span> <span class="variable">x</span>: <span class="operator">&amp;</span><span class="type builtin">str</span> <span class="operator">=</span> <span class="string">&quot;abc&quot;</span><span class="punctuation">;</span>
-<span class="keyword">const</span> <span class="variable">y</span>: <span class="type builtin">u32</span> <span class="operator">=</span> <span class="constant">123</span><span class="punctuation">;</span>
-<span class="keyword">const</span> <span class="variable">z</span>: <span class="type builtin">f32</span> <span class="operator">=</span> <span class="constant">1.0</span><span class="punctuation">;</span>
+<span class="keyword">const</span> <span class="variable">y</span>: <span class="type builtin">u32</span> <span class="operator">=</span> <span class="constant numeric">123</span><span class="punctuation">;</span>
+<span class="keyword">const</span> <span class="variable">z</span>: <span class="type builtin">f32</span> <span class="operator">=</span> <span class="constant numeric">1.0</span><span class="punctuation">;</span>
 </code></pre>"#
         )
     }
