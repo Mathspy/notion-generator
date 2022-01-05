@@ -23,31 +23,39 @@ const HIGHLIGHTS: [&str; 14] = [
 ];
 
 pub fn highlight(lang: &Language, code: &str, id: NotionId) -> Result<Markup> {
-    // This converts the language because to serde_json::Value and since we are confident
-    // that it's a Value of variant `Value::String` we call .as_str to get the content of
-    // the string.
-    // Attempting to use serde_json::to_string results in language names being wrapped in
-    // unnecessary quotes that we have to manually remove
-    let lang_name =
-        serde_json::to_value(lang).context("Failed to convert Language back to string")?;
-    let lang_name = lang_name
-        .as_str()
-        .context("Language type was not a JSON string? This should be unreachable")?;
-
-    let (tree_sitter_lang, highlights) = match lang {
-        Language::PlainText => {
-            return Ok(html! {
-                pre id=(id) class=(lang_name) {
-                    // TODO: I might remove this code wrapper IF Notion's language support improves
-                    // even TOML is currently not supported :<
-                    code class=(lang_name) {
-                        (code)
+    let (tree_sitter_lang, highlights, code, lang_name) = match (lang, code) {
+        (Language::PlainText, code) => {
+            if let Some(code) = code.strip_prefix("%$NOTION-HACK$%toml\n") {
+                (
+                    tree_sitter_toml::language(),
+                    tree_sitter_toml::HIGHLIGHT_QUERY,
+                    code,
+                    "toml",
+                )
+            } else {
+                return Ok(html! {
+                    pre id=(id) class="plain_text" {
+                        code class="plain_text" {
+                            (code)
+                        }
                     }
-                }
-            });
+                });
+            }
         }
-        Language::Rust => (tree_sitter_rust::language(), RUST_HIGHLIGHTS),
-        _ => bail!("Unsupported language {}", lang_name),
+        (Language::Rust, code) => (tree_sitter_rust::language(), RUST_HIGHLIGHTS, code, "rust"),
+        _ => bail!(
+            "Unsupported language {}",
+            serde_json::to_value(lang)
+                .ok()
+                .and_then(
+                    |value| if let serde_json::Value::String(lang_name) = value {
+                        Some(lang_name)
+                    } else {
+                        None
+                    }
+                )
+                .context("Unsupported language with unserializable name")?
+        ),
     };
 
     let mut config = HighlightConfiguration::new(tree_sitter_lang, highlights, "", "")
@@ -111,6 +119,28 @@ I hope you have a great day!</code></pre>"#
             .unwrap()
             .into_string(),
             r#"<pre id="5e845049255f423296fd6f20449be0bc" class="rust"><code class="rust"><span class="keyword">const</span> <span class="variable">x</span>: <span class="operator">&amp;</span><span class="type builtin">str</span> <span class="operator">=</span> <span class="string">&quot;abc&quot;</span><span class="punctuation">;</span>
+</code></pre>"#
+        );
+    }
+
+    #[test]
+    fn toml_via_hack() {
+        assert_eq!(
+            highlight(
+                &Language::PlainText,
+                r#"%$NOTION-HACK$%toml
+[package]
+name = "cargo"
+version = "0.1.0"
+edition = "2021""#,
+                "5e845049255f423296fd6f20449be0bc".parse().unwrap()
+            )
+            .unwrap()
+            .into_string(),
+            r#"<pre id="5e845049255f423296fd6f20449be0bc" class="toml"><code class="toml"><span class="punctuation">[</span>package<span class="punctuation">]</span>
+name <span class="operator">=</span> <span class="string">&quot;cargo&quot;</span>
+version <span class="operator">=</span> <span class="string">&quot;0.1.0&quot;</span>
+edition <span class="operator">=</span> <span class="string">&quot;2021&quot;</span>
 </code></pre>"#
         );
     }
