@@ -5,12 +5,13 @@ use tree_sitter_highlight::{HighlightConfiguration, Highlighter, HtmlRenderer};
 
 const RUST_HIGHLIGHTS: &str = include_str!("./rust.scm");
 
-const HIGHLIGHTS: [&str; 15] = [
+const HIGHLIGHTS: [&str; 16] = [
     "attribute",
     "comment",
     "constant",
     "constant.numeric",
     "function",
+    "function.macro",
     "keyword",
     "label",
     "namespace",
@@ -161,8 +162,8 @@ struct Opts {
             .unwrap()
             .into_string(),
             r#"<pre id="5e845049255f423296fd6f20449be0bc" class="rust"><code class="rust"><span class="keyword">fn</span> <span class="function">rust_attributes</span><span class="punctuation">(</span><span class="punctuation">)</span> <span class="punctuation">{</span>
-    <span class="function">assert</span><span class="function">!</span><span class="punctuation">(</span><span class="variable">cool_function</span><span class="punctuation">(</span><span class="punctuation">)</span><span class="punctuation">)</span><span class="punctuation">;</span>
-    <span class="function">println</span><span class="function">!</span><span class="punctuation">(</span><span class="punctuation">)</span>
+    <span class="function macro">assert</span><span class="function macro">!</span><span class="punctuation">(</span><span class="variable">cool_function</span><span class="punctuation">(</span><span class="punctuation">)</span><span class="punctuation">)</span><span class="punctuation">;</span>
+    <span class="function macro">println</span><span class="function macro">!</span><span class="punctuation">(</span><span class="punctuation">)</span>
 <span class="punctuation">}</span>
 </code></pre>"#
         )
