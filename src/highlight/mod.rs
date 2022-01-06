@@ -5,11 +5,12 @@ use tree_sitter_highlight::{HighlightConfiguration, Highlighter, HtmlRenderer};
 
 const RUST_HIGHLIGHTS: &str = include_str!("./rust.scm");
 
-const HIGHLIGHTS: [&str; 16] = [
+const HIGHLIGHTS: [&str; 17] = [
     "attribute",
     "comment",
     "constant",
     "constant.numeric",
+    "constructor",
     "function",
     "function.macro",
     "keyword",
@@ -340,8 +341,8 @@ mod tests {
     <span class="punctuation">(</span><span class="constant numeric">1</span><span class="operator">..</span><span class="constant numeric">10</span><span class="punctuation">)</span><span class="punctuation">.</span><span class="function">map</span><span class="punctuation">(</span><span class="operator">|</span><span class="variable">x</span><span class="operator">|</span> <span class="variable">x</span> <span class="operator">*</span> <span class="constant numeric">3</span><span class="punctuation">)</span><span class="punctuation">.</span><span class="function">collect</span><span class="punctuation">::</span><span class="punctuation">&lt;</span><span class="type">Vec</span><span class="punctuation">&lt;</span><span class="type">_</span><span class="punctuation">&gt;</span><span class="punctuation">&gt;</span><span class="punctuation">(</span><span class="punctuation">)</span><span class="punctuation">;</span>
 
     <span class="keyword">match</span> <span class="type">Xyz</span> <span class="punctuation">{</span>
-        XVariant <span class="punctuation">{</span> <span class="variable">field</span> <span class="punctuation">}</span> <span class="operator">=&gt;</span> <span class="punctuation">{</span><span class="punctuation">}</span>
-        YVariant<span class="punctuation">(</span><span class="variable">whatever</span><span class="punctuation">)</span> <span class="operator">=&gt;</span> <span class="punctuation">{</span><span class="punctuation">}</span>
+        <span class="constructor">XVariant</span> <span class="punctuation">{</span> <span class="variable">field</span> <span class="punctuation">}</span> <span class="operator">=&gt;</span> <span class="punctuation">{</span><span class="punctuation">}</span>
+        <span class="constructor">YVariant</span><span class="punctuation">(</span><span class="variable">whatever</span><span class="punctuation">)</span> <span class="operator">=&gt;</span> <span class="punctuation">{</span><span class="punctuation">}</span>
         <span class="type">ZVariant</span> <span class="operator">=&gt;</span> <span class="punctuation">{</span><span class="punctuation">}</span>
         <span class="variable">fallback</span> <span class="operator">=&gt;</span> <span class="punctuation">{</span><span class="punctuation">}</span>
     <span class="punctuation">}</span><span class="punctuation">;</span>
