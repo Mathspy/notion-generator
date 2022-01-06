@@ -148,6 +148,27 @@ struct Opts {
     }
 
     #[test]
+    fn rust_functions_and_macros() {
+        assert_eq!(
+            highlight(
+                &Language::Rust,
+                r#"fn rust_attributes() {
+    assert!(cool_function());
+    println!()
+}"#,
+                "5e845049255f423296fd6f20449be0bc".parse().unwrap()
+            )
+            .unwrap()
+            .into_string(),
+            r#"<pre id="5e845049255f423296fd6f20449be0bc" class="rust"><code class="rust"><span class="keyword">fn</span> <span class="function">rust_attributes</span><span class="punctuation">(</span><span class="punctuation">)</span> <span class="punctuation">{</span>
+    <span class="function">assert</span><span class="function">!</span><span class="punctuation">(</span><span class="variable">cool_function</span><span class="punctuation">(</span><span class="punctuation">)</span><span class="punctuation">)</span><span class="punctuation">;</span>
+    <span class="function">println</span><span class="function">!</span><span class="punctuation">(</span><span class="punctuation">)</span>
+<span class="punctuation">}</span>
+</code></pre>"#
+        )
+    }
+
+    #[test]
     fn rust_constants() {
         assert_eq!(
             highlight(
