@@ -640,6 +640,15 @@ impl<'a> Render for RichTextRenderer<'a> {
                         buffer.push_str("</time>");
                     }
                 }
+                RichTextMentionType::Page { .. } => {
+                    buffer.push_str("<a href=\"");
+                    buffer.push_str(self.rich_text.href.as_deref().expect("page without href"));
+                    buffer.push_str("\">");
+
+                    buffer.push_str(&self.rich_text.plain_text);
+
+                    buffer.push_str("</a>");
+                }
                 _ => todo!(),
             },
         }
@@ -1917,6 +1926,24 @@ mod tests {
                 .render()
                 .into_string(),
             r#"<time datetime="2021-12-05">December 05, 2021</time> to <time datetime="2021-12-06">December 06, 2021</time>"#
+        );
+
+        let text = RichText {
+            plain_text: "watereddown-test".to_string(),
+            href: Some("https://www.notion.so/6e0eb85f60474efba1304f92d2abfa2c".to_string()),
+            annotations: Default::default(),
+            ty: RichTextType::Mention {
+                mention: RichTextMentionType::Page {
+                    id: "6e0eb85f60474efba1304f92d2abfa2c".parse().unwrap(),
+                },
+            },
+        };
+
+        assert_eq!(
+            RichTextRenderer::new(&text, &renderer)
+                .render()
+                .into_string(),
+            r#"<a href="https://www.notion.so/6e0eb85f60474efba1304f92d2abfa2c">watereddown-test</a>"#
         );
     }
 
