@@ -72,7 +72,7 @@ pub fn highlight(lang: &Language, code: &str, id: NotionId) -> Result<Markup> {
         .unwrap();
 
     let classes = HIGHLIGHTS
-        .map(|highlight| format!(r#"class="{}""#, highlight.replace(".", " ")).into_bytes());
+        .map(|highlight| format!(r#"class="{}""#, highlight.replace('.', " ")).into_bytes());
 
     renderer
         .render(events, code.as_bytes(), &|highlight| &classes[highlight.0])
