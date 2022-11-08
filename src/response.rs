@@ -25,13 +25,13 @@ impl fmt::Display for NotionId {
 
 // ------------------ NOTION ERROR OBJECT ------------------
 // As defined in https://developers.notion.com/reference/errors
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct Error {
     pub code: ErrorCode,
     pub message: String,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all(deserialize = "snake_case", serialize = "SCREAMING_SNAKE_CASE"))]
 pub enum ErrorCode {
     InvalidJson,
@@ -53,7 +53,7 @@ pub enum ErrorCode {
 
 // ------------------ NOTION LIST OBJECT ------------------
 // As defined in https://developers.notion.com/reference/pagination
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct List<T> {
     // TODO: assert!(list.object == "list");
     pub object: String,
@@ -64,7 +64,7 @@ pub struct List<T> {
 
 // ------------------ NOTION RICH TEXT OBJECT ------------------
 // As defined in https://developers.notion.com/reference/rich-text
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct RichText {
     pub plain_text: String,
     pub href: Option<String>,
@@ -250,7 +250,7 @@ mod deserializers {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RichTextType {
     Text {
@@ -267,7 +267,7 @@ pub enum RichTextType {
     },
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub enum RichTextLink {
     Internal {
         page: NotionId,
@@ -278,7 +278,7 @@ pub enum RichTextLink {
     },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Time {
     // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
     // date(time) later
@@ -304,7 +304,7 @@ impl PartialOrd<Date> for Time {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RichTextMentionType {
     User {
@@ -325,7 +325,7 @@ pub enum RichTextMentionType {
     // TODO(NOTION): link_preview has absolutely no documentation
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum UserType {
     Person { email: String },
@@ -333,7 +333,7 @@ pub enum UserType {
     // Bot
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct NotionDate {
     #[serde(deserialize_with = "deserializers::time")]
     pub start: Time,
@@ -347,7 +347,7 @@ pub struct NotionDate {
     pub time_zone: Option<String>,
 }
 
-#[derive(Debug, Default, Deserialize, PartialEq)]
+#[derive(Debug, Default, Deserialize, PartialEq, Eq)]
 pub struct Annotations {
     pub bold: bool,
     pub italic: bool,
@@ -357,7 +357,7 @@ pub struct Annotations {
     pub color: Color,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Color {
     Default,
@@ -389,7 +389,7 @@ impl Default for Color {
 
 // ------------------ NOTION PAGE OBJECT -------------------
 // As defined in https://developers.notion.com/reference/page
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct Page<P> {
     // TODO: assert!(page.object == "page");
     pub object: String,
@@ -420,7 +420,7 @@ impl<P> Page<P> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PageParent {
     Database { id: String },
     Page { id: String },
@@ -431,13 +431,13 @@ pub mod properties {
     use super::{NotionDate, RichText};
     use serde::Deserialize;
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Deserialize, PartialEq, Eq)]
     pub struct TitleProperty {
         pub id: String,
         pub title: Vec<RichText>,
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Deserialize, PartialEq, Eq)]
     pub struct RichTextProperty {
         pub id: String,
         pub rich_text: Vec<RichText>,
@@ -449,7 +449,7 @@ pub mod properties {
         pub number: Option<f64>,
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Deserialize, PartialEq, Eq)]
     pub struct DateProperty {
         pub id: String,
         pub date: Option<NotionDate>,
@@ -475,7 +475,7 @@ pub mod properties {
 
 // ------------------ NOTION BLOCK OBJECT ------------------
 // As defined in https://developers.notion.com/reference/block
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct Block {
     // TODO: assert!(list.object == "list");
     pub object: String,
@@ -608,7 +608,7 @@ pub enum ListType {
 }
 
 // TODO: This only supports the types I think I will need for now
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum BlockType {
     Paragraph {
@@ -683,7 +683,7 @@ pub enum BlockType {
     // Unsupported
 }
 
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all(deserialize = "lowercase", serialize = "snake_case"))]
 pub enum Language {
     Abap,
@@ -771,14 +771,14 @@ pub enum Language {
 
 // // ------------------ NOTION EMOJI OBJECT ------------------
 // // As defined in https://developers.notion.com/reference/emoji-object
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct Emoji {
     pub emoji: String,
 }
 
 // // ------------------ NOTION EMOJI OBJECT ------------------
 // // As defined in https://developers.notion.com/reference/file-object
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub enum File {
     #[serde(rename = "file")]
     Internal { url: String, expiry_time: String },
@@ -821,7 +821,7 @@ impl File {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type")]
 pub enum EmojiOrFile {
     #[serde(rename = "file", alias = "external")]
