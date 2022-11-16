@@ -540,6 +540,10 @@ impl<'a> RichTextRenderer<'a> {
 
         buffer.push_str("\">");
     }
+
+    fn render_link_closing(&self, buffer: &mut String) {
+        buffer.push_str("</a>");
+    }
 }
 
 impl<'a> Render for RichTextRenderer<'a> {
@@ -572,7 +576,7 @@ impl<'a> Render for RichTextRenderer<'a> {
                 buffer.push_str(&escaped_content);
 
                 if link.is_some() {
-                    buffer.push_str("</a>");
+                    self.render_link_closing(buffer);
                 }
                 if self.rich_text.annotations.code {
                     buffer.push_str("</code>");
