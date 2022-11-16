@@ -495,6 +495,51 @@ impl<'a> RichTextRenderer<'a> {
             link_map: renderer.link_map,
         }
     }
+
+    fn render_link_opening(&self, buffer: &mut String, link: &RichTextLink) {
+        buffer.push_str("<a href=\"");
+
+        match link {
+            RichTextLink::External { url } => {
+                let mut escaped_link = String::with_capacity(url.len());
+                let mut escaper = Escaper::new(&mut escaped_link);
+                escaper.write_str(url).expect("unreachable");
+                buffer.push_str(&escaped_link);
+
+                // Ensure external links open in a new tab
+                // We close href's string and then put target and rel. Rel's string
+                // still needs to be closed and so that will happen below
+                buffer.push_str(r#"" target="_blank" rel="noreferrer noopener"#);
+            }
+            RichTextLink::Internal { page, block } => {
+                match (self.current_pages.contains(page), block) {
+                    (true, Some(block)) => {
+                        buffer.push('#');
+                        buffer.push_str(block);
+                    }
+                    (true, None) => {
+                        buffer.push('#');
+                        buffer.push_str(&page.to_string());
+                    }
+                    (false, block) => {
+                        if let Some(path) = self.link_map.get(page) {
+                            buffer.push_str(path);
+                        } else {
+                            buffer.push('/');
+                            buffer.push_str(&page.to_string());
+                        }
+
+                        if let Some(block) = block {
+                            buffer.push('#');
+                            buffer.push_str(block);
+                        }
+                    }
+                }
+            }
+        }
+
+        buffer.push_str("\">");
+    }
 }
 
 impl<'a> Render for RichTextRenderer<'a> {
@@ -518,48 +563,7 @@ impl<'a> Render for RichTextRenderer<'a> {
                     buffer.push_str("<code>");
                 }
                 if let Some(link) = link {
-                    buffer.push_str("<a href=\"");
-
-                    match link {
-                        RichTextLink::External { url } => {
-                            let mut escaped_link = String::with_capacity(url.len());
-                            let mut escaper = Escaper::new(&mut escaped_link);
-                            escaper.write_str(url).expect("unreachable");
-                            buffer.push_str(&escaped_link);
-
-                            // Ensure external links open in a new tab
-                            // We close href's string and then put target and rel. Rel's string
-                            // still needs to be closed and so that will happen below
-                            buffer.push_str(r#"" target="_blank" rel="noreferrer noopener"#);
-                        }
-                        RichTextLink::Internal { page, block } => {
-                            match (self.current_pages.contains(page), block) {
-                                (true, Some(block)) => {
-                                    buffer.push('#');
-                                    buffer.push_str(block);
-                                }
-                                (true, None) => {
-                                    buffer.push('#');
-                                    buffer.push_str(&page.to_string());
-                                }
-                                (false, block) => {
-                                    if let Some(path) = self.link_map.get(page) {
-                                        buffer.push_str(path);
-                                    } else {
-                                        buffer.push('/');
-                                        buffer.push_str(&page.to_string());
-                                    }
-
-                                    if let Some(block) = block {
-                                        buffer.push('#');
-                                        buffer.push_str(block);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    buffer.push_str("\">");
+                    self.render_link_opening(buffer, link)
                 }
 
                 let mut escaped_content = String::with_capacity(content.len());
