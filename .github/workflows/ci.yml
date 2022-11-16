@@ -26,7 +26,7 @@ jobs:
           default: true
           components: clippy
 
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
 
       - name: Are you happy Clippy?
         run: cargo clippy --workspace -- --deny clippy::all
@@ -45,7 +45,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
           default: true
 
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
 
       - name: Running tests
         run: cargo test --workspace
@@ -60,7 +60,7 @@ jobs:
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
 
       - name: Checking format
         run: cargo fmt --all -- --check
@@ -78,7 +78,7 @@ jobs:
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
 
       - name: Build
         uses: actions-rs/cargo@v1
