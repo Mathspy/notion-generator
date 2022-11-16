@@ -650,14 +650,18 @@ impl<'a> Render for RichTextRenderer<'a> {
                         buffer.push_str("</time>");
                     }
                 }
-                RichTextMentionType::Page { .. } => {
-                    buffer.push_str("<a href=\"");
-                    buffer.push_str(self.rich_text.href.as_deref().expect("page without href"));
-                    buffer.push_str("\">");
+                &RichTextMentionType::Page { id } => {
+                    self.render_link_opening(
+                        buffer,
+                        &RichTextLink::Internal {
+                            page: id,
+                            block: None,
+                        },
+                    );
 
                     buffer.push_str(&self.rich_text.plain_text);
 
-                    buffer.push_str("</a>");
+                    self.render_link_closing(buffer);
                 }
                 _ => todo!(),
             },
