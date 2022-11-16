@@ -625,16 +625,18 @@ impl<'a> Render for RichTextRenderer<'a> {
 
                         match time.parsed {
                             Either::Left(date) => {
-                                date.format_into_fmt_writer(buffer, READABLE_DATE).unwrap()
+                                buffer.push_str(&date.format(READABLE_DATE).unwrap())
                             }
                             // TODO: Either of the following
                             // 1) Support letting people customize the timezone for all blocks
                             // 2) Detect the timezone name and append it
                             // 3) Ask Notion devs to add timezone name to API response
-                            Either::Right(datetime) => datetime
-                                .to_offset(time::UtcOffset::UTC)
-                                .format_into_fmt_writer(buffer, READABLE_DATETIME)
-                                .unwrap(),
+                            Either::Right(datetime) => buffer.push_str(
+                                &datetime
+                                    .to_offset(time::UtcOffset::UTC)
+                                    .format(READABLE_DATETIME)
+                                    .unwrap(),
+                            ),
                         };
 
                         buffer.push_str("</time>");
