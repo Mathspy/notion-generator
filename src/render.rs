@@ -1957,7 +1957,7 @@ mod tests {
             RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
-            r#"<a href="https://www.notion.so/6e0eb85f60474efba1304f92d2abfa2c">watereddown-test</a>"#
+            r#"<a href="/6e0eb85f60474efba1304f92d2abfa2c">watereddown-test</a>"#
         );
     }
 
