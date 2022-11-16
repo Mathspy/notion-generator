@@ -495,6 +495,55 @@ impl<'a> RichTextRenderer<'a> {
             link_map: renderer.link_map,
         }
     }
+
+    fn render_link_opening(&self, buffer: &mut String, link: &RichTextLink) {
+        buffer.push_str("<a href=\"");
+
+        match link {
+            RichTextLink::External { url } => {
+                let mut escaped_link = String::with_capacity(url.len());
+                let mut escaper = Escaper::new(&mut escaped_link);
+                escaper.write_str(url).expect("unreachable");
+                buffer.push_str(&escaped_link);
+
+                // Ensure external links open in a new tab
+                // We close href's string and then put target and rel. Rel's string
+                // still needs to be closed and so that will happen below
+                buffer.push_str(r#"" target="_blank" rel="noreferrer noopener"#);
+            }
+            RichTextLink::Internal { page, block } => {
+                match (self.current_pages.contains(page), block) {
+                    (true, Some(block)) => {
+                        buffer.push('#');
+                        buffer.push_str(block);
+                    }
+                    (true, None) => {
+                        buffer.push('#');
+                        buffer.push_str(&page.to_string());
+                    }
+                    (false, block) => {
+                        if let Some(path) = self.link_map.get(page) {
+                            buffer.push_str(path);
+                        } else {
+                            buffer.push('/');
+                            buffer.push_str(&page.to_string());
+                        }
+
+                        if let Some(block) = block {
+                            buffer.push('#');
+                            buffer.push_str(block);
+                        }
+                    }
+                }
+            }
+        }
+
+        buffer.push_str("\">");
+    }
+
+    fn render_link_closing(&self, buffer: &mut String) {
+        buffer.push_str("</a>");
+    }
 }
 
 impl<'a> Render for RichTextRenderer<'a> {
@@ -518,48 +567,7 @@ impl<'a> Render for RichTextRenderer<'a> {
                     buffer.push_str("<code>");
                 }
                 if let Some(link) = link {
-                    buffer.push_str("<a href=\"");
-
-                    match link {
-                        RichTextLink::External { url } => {
-                            let mut escaped_link = String::with_capacity(url.len());
-                            let mut escaper = Escaper::new(&mut escaped_link);
-                            escaper.write_str(url).expect("unreachable");
-                            buffer.push_str(&escaped_link);
-
-                            // Ensure external links open in a new tab
-                            // We close href's string and then put target and rel. Rel's string
-                            // still needs to be closed and so that will happen below
-                            buffer.push_str(r#"" target="_blank" rel="noreferrer noopener"#);
-                        }
-                        RichTextLink::Internal { page, block } => {
-                            match (self.current_pages.contains(page), block) {
-                                (true, Some(block)) => {
-                                    buffer.push('#');
-                                    buffer.push_str(block);
-                                }
-                                (true, None) => {
-                                    buffer.push('#');
-                                    buffer.push_str(&page.to_string());
-                                }
-                                (false, block) => {
-                                    if let Some(path) = self.link_map.get(page) {
-                                        buffer.push_str(path);
-                                    } else {
-                                        buffer.push('/');
-                                        buffer.push_str(&page.to_string());
-                                    }
-
-                                    if let Some(block) = block {
-                                        buffer.push('#');
-                                        buffer.push_str(block);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    buffer.push_str("\">");
+                    self.render_link_opening(buffer, link)
                 }
 
                 let mut escaped_content = String::with_capacity(content.len());
@@ -568,7 +576,7 @@ impl<'a> Render for RichTextRenderer<'a> {
                 buffer.push_str(&escaped_content);
 
                 if link.is_some() {
-                    buffer.push_str("</a>");
+                    self.render_link_closing(buffer);
                 }
                 if self.rich_text.annotations.code {
                     buffer.push_str("</code>");
@@ -642,14 +650,18 @@ impl<'a> Render for RichTextRenderer<'a> {
                         buffer.push_str("</time>");
                     }
                 }
-                RichTextMentionType::Page { .. } => {
-                    buffer.push_str("<a href=\"");
-                    buffer.push_str(self.rich_text.href.as_deref().expect("page without href"));
-                    buffer.push_str("\">");
+                &RichTextMentionType::Page { id } => {
+                    self.render_link_opening(
+                        buffer,
+                        &RichTextLink::Internal {
+                            page: id,
+                            block: None,
+                        },
+                    );
 
                     buffer.push_str(&self.rich_text.plain_text);
 
-                    buffer.push_str("</a>");
+                    self.render_link_closing(buffer);
                 }
                 _ => todo!(),
             },
@@ -1945,7 +1957,7 @@ mod tests {
             RichTextRenderer::new(&text, &renderer)
                 .render()
                 .into_string(),
-            r#"<a href="https://www.notion.so/6e0eb85f60474efba1304f92d2abfa2c">watereddown-test</a>"#
+            r#"<a href="/6e0eb85f60474efba1304f92d2abfa2c">watereddown-test</a>"#
         );
     }
 
