@@ -304,6 +304,12 @@ impl PartialOrd<Date> for Time {
     }
 }
 
+impl PartialEq<Time> for Time {
+    fn eq(&self, other: &Time) -> bool {
+        self.parsed == other.parsed
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RichTextMentionType {
