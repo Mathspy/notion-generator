@@ -278,6 +278,8 @@ pub enum RichTextLink {
     },
 }
 
+// TODO: The original and parsed shouldn't really be pub and instead should use getter methods to
+// ensure they stay in sync and can't be changed in an invalid way
 #[derive(Debug, Eq)]
 pub struct Time {
     // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
