@@ -278,7 +278,7 @@ pub enum RichTextLink {
     },
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Eq)]
 pub struct Time {
     // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
     // date(time) later
@@ -323,6 +323,22 @@ impl PartialOrd<Time> for Time {
         };
 
         this.partial_cmp(&other)
+    }
+}
+
+impl Ord for Time {
+    fn cmp(&self, other: &Time) -> std::cmp::Ordering {
+        let this = match self.parsed {
+            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
+            Either::Right(datetime) => datetime,
+        };
+
+        let other = match other.parsed {
+            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
+            Either::Right(datetime) => datetime,
+        };
+
+        this.cmp(&other)
     }
 }
 
