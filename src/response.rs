@@ -310,6 +310,22 @@ impl PartialEq<Time> for Time {
     }
 }
 
+impl PartialOrd<Time> for Time {
+    fn partial_cmp(&self, other: &Time) -> Option<std::cmp::Ordering> {
+        let this = match self.parsed {
+            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
+            Either::Right(datetime) => datetime,
+        };
+
+        let other = match other.parsed {
+            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
+            Either::Right(datetime) => datetime,
+        };
+
+        this.partial_cmp(&other)
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RichTextMentionType {
