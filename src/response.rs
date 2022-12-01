@@ -278,7 +278,9 @@ pub enum RichTextLink {
     },
 }
 
-#[derive(Debug, PartialEq, Eq)]
+// TODO: The original and parsed shouldn't really be pub and instead should use getter methods to
+// ensure they stay in sync and can't be changed in an invalid way
+#[derive(Debug, Eq)]
 pub struct Time {
     // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
     // date(time) later
@@ -301,6 +303,44 @@ impl PartialOrd<Date> for Time {
             Either::Left(date) => date.partial_cmp(other),
             Either::Right(datetime) => datetime.date().partial_cmp(other),
         }
+    }
+}
+
+impl PartialEq<Time> for Time {
+    fn eq(&self, other: &Time) -> bool {
+        self.parsed == other.parsed
+    }
+}
+
+impl PartialOrd<Time> for Time {
+    fn partial_cmp(&self, other: &Time) -> Option<std::cmp::Ordering> {
+        let this = match self.parsed {
+            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
+            Either::Right(datetime) => datetime,
+        };
+
+        let other = match other.parsed {
+            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
+            Either::Right(datetime) => datetime,
+        };
+
+        this.partial_cmp(&other)
+    }
+}
+
+impl Ord for Time {
+    fn cmp(&self, other: &Time) -> std::cmp::Ordering {
+        let this = match self.parsed {
+            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
+            Either::Right(datetime) => datetime,
+        };
+
+        let other = match other.parsed {
+            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
+            Either::Right(datetime) => datetime,
+        };
+
+        this.cmp(&other)
     }
 }
 
