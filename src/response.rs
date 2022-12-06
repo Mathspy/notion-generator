@@ -596,6 +596,7 @@ impl Block {
             BlockType::ToDo { .. } => "todo",
             BlockType::Code { .. } => "code",
             BlockType::Image { .. } => "image",
+            BlockType::Video { .. } => "video",
             BlockType::Divider { .. } => "divider",
             BlockType::TableOfContents { .. } => "table_of_contents",
         }
@@ -710,7 +711,11 @@ pub enum BlockType {
         image: File,
         caption: Vec<RichText>,
     },
-    // Video
+    Video {
+        #[serde(flatten)]
+        video: File,
+        caption: Vec<RichText>,
+    },
     // PDF
     // Bookmark
     // Equation
