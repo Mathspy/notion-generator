@@ -2837,6 +2837,87 @@ mod tests {
     }
 
     #[test]
+    fn test_video() {
+        let json = r#"
+            {
+              "object": "block",
+              "id": "c180005a-d8de-4cd5-87ad-d47d8c2fb0f3",
+              "parent": {
+                "type": "page_id",
+                "page_id": "72854c41-6a1d-4247-951f-de978d0422eb"
+              },
+              "created_time": "2022-12-06T00:21:00.000Z",
+              "last_edited_time": "2022-12-06T00:24:00.000Z",
+              "created_by": {
+                "object": "user",
+                "id": "3490e5d3-1f88-4d8b-9a83-6431ece037e0"
+              },
+              "last_edited_by": {
+                "object": "user",
+                "id": "3490e5d3-1f88-4d8b-9a83-6431ece037e0"
+              },
+              "has_children": false,
+              "archived": false,
+              "type": "video",
+              "video": {
+                "caption": [
+                  {
+                    "type": "text",
+                    "text": {
+                      "content": "A video of two circles, one pink and one red where the pink is moving and stopping based on user input while the red one is chasing it relentlessly at a fixed velocity",
+                      "link": null
+                    },
+                    "annotations": {
+                      "bold": false,
+                      "italic": false,
+                      "strikethrough": false,
+                      "underline": false,
+                      "code": false,
+                      "color": "default"
+                    },
+                    "plain_text": "A video of two circles, one pink and one red where the pink is moving and stopping based on user input while the red one is chasing it relentlessly at a fixed velocity",
+                    "href": null
+                  }
+                ],
+                "type": "file",
+                "file": {
+                  "url": "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/a8c4f962-7f7a-45cd-a2a5-ffe295afa355/moving_enemy.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20221206%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20221206T002733Z&X-Amz-Expires=3600&X-Amz-Signature=039e735804116d7f8cad60c8719fd61ff58438f408c8cf1401a3fbd70939495b&X-Amz-SignedHeaders=host&x-id=GetObject",
+                  "expiry_time": "2022-12-06T01:27:33.514Z"
+                }
+              }
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<Block>(json).unwrap(),
+            Block {
+                object: "block".to_string(),
+                id: "c180005ad8de4cd587add47d8c2fb0f3".parse().unwrap(),
+                created_time: "2022-12-06T00:21:00.000Z".to_string(),
+                last_edited_time: "2022-12-06T00:24:00.000Z".to_string(),
+                has_children: false,
+                archived: false,
+                ty: BlockType::Video {
+                    video: File::Internal {
+                        url: "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/a8c4f962-7f7a-45cd-a2a5-ffe295afa355/moving_enemy.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20221206%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20221206T002733Z&X-Amz-Expires=3600&X-Amz-Signature=039e735804116d7f8cad60c8719fd61ff58438f408c8cf1401a3fbd70939495b&X-Amz-SignedHeaders=host&x-id=GetObject".to_string(),
+                        expiry_time: "2022-12-06T01:27:33.514Z".to_string(),
+                    },
+                    caption: vec![
+                        RichText {
+                            plain_text: "A video of two circles, one pink and one red where the pink is moving and stopping based on user input while the red one is chasing it relentlessly at a fixed velocity".to_string(),
+                            href: None,
+                            annotations: Default::default(),
+                            ty: RichTextType::Text {
+                                content: "A video of two circles, one pink and one red where the pink is moving and stopping based on user input while the red one is chasing it relentlessly at a fixed velocity".to_string(),
+                                link: None,
+                            },
+                        },
+                    ],
+                },
+            },
+        );
+    }
+    #[test]
     fn test_table_of_contents() {
         let json = r#"
             {
