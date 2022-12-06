@@ -358,6 +358,32 @@ impl<'html> HtmlRenderer<'html> {
 
                 Ok(markup)
             }
+            BlockType::Video { video, caption } => {
+                let downloadable = video.as_downloadable(block.id)?;
+
+                let markup = if !caption.is_empty() {
+                    // Lack of alt text can be explained here
+                    // https://stackoverflow.com/a/58468470/3018913
+                    html! {
+                        figure id=(block.id) {
+                            video src=(downloadable.src_path());
+                            figcaption {
+                                (self.render_rich_text(caption))
+                            }
+                        }
+                    }
+                } else {
+                    eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
+
+                    html! {
+                        video id=(block.id) src=(downloadable.src_path());
+                    }
+                };
+
+                self.downloadables.insert(downloadable);
+
+                Ok(markup)
+            }
             BlockType::Callout {
                 text,
                 children,
