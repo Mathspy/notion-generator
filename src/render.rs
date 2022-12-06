@@ -358,6 +358,32 @@ impl<'html> HtmlRenderer<'html> {
 
                 Ok(markup)
             }
+            BlockType::Video { video, caption } => {
+                let downloadable = video.as_downloadable(block.id)?;
+
+                let markup = if !caption.is_empty() {
+                    // Lack of alt text can be explained here
+                    // https://stackoverflow.com/a/58468470/3018913
+                    html! {
+                        figure id=(block.id) {
+                            video src=(downloadable.src_path());
+                            figcaption {
+                                (self.render_rich_text(caption))
+                            }
+                        }
+                    }
+                } else {
+                    eprintln!("WARNING: Rendering image without caption text is not accessibility friendly for users who use screen readers");
+
+                    html! {
+                        video id=(block.id) src=(downloadable.src_path());
+                    }
+                };
+
+                self.downloadables.insert(downloadable);
+
+                Ok(markup)
+            }
             BlockType::Callout {
                 text,
                 children,
@@ -1547,6 +1573,67 @@ mod tests {
                 &Downloadable::new(
                     Url::parse("https://mathspy.me/random-file").unwrap(),
                     PathBuf::from("media/d1e5e2c543514b8e83a320ef532967a7"),
+                ).unwrap(),
+            ])
+        );
+    }
+
+    #[test]
+    fn render_videos() {
+        let renderer = HtmlRenderer {
+            heading_anchors: HeadingAnchors::None,
+            current_pages: HashSet::from(["46f8638c25a84ccd9d926e42bdb5535e".parse().unwrap()]),
+            link_map: &HashMap::new(),
+            downloadables: &Downloadables::new(),
+        };
+
+        let block = Block {
+            object: "block".to_string(),
+            id: "c180005ad8de4cd587add47d8c2fb0f3".parse().unwrap(),
+            created_time: "2022-12-06T00:21:00.000Z".to_string(),
+            last_edited_time: "2022-12-06T00:24:00.000Z".to_string(),
+            has_children: false,
+            archived: false,
+            ty: BlockType::Video {
+                video: File::Internal {
+                    url: "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/a8c4f962-7f7a-45cd-a2a5-ffe295afa355/moving_enemy.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20221206%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20221206T002733Z&X-Amz-Expires=3600&X-Amz-Signature=039e735804116d7f8cad60c8719fd61ff58438f408c8cf1401a3fbd70939495b&X-Amz-SignedHeaders=host&x-id=GetObject".to_string(),
+                    expiry_time: "2022-12-06T01:27:33.514Z".to_string(),
+                },
+                caption: vec![
+                    RichText {
+                        plain_text: "A video of two circles, one pink and one red where the pink is moving and stopping based on user input while the red one is chasing it relentlessly at a fixed velocity".to_string(),
+                        href: None,
+                        annotations: Default::default(),
+                        ty: RichTextType::Text {
+                            content: "A video of two circles, one pink and one red where the pink is moving and stopping based on user input while the red one is chasing it relentlessly at a fixed velocity".to_string(),
+                            link: None,
+                        },
+                    },
+                ],
+            },
+        };
+
+        let markup = renderer
+            .render_block(&block, None, 0)
+            .unwrap()
+            .into_string();
+        assert_eq!(
+            markup,
+            r#"<figure id="c180005ad8de4cd587add47d8c2fb0f3"><video src="/media/c180005ad8de4cd587add47d8c2fb0f3.mp4"><figcaption>A video of two circles, one pink and one red where the pink is moving and stopping based on user input while the red one is chasing it relentlessly at a fixed velocity</figcaption></figure>"#,
+        );
+        let guard = renderer.downloadables.set.guard();
+        assert_eq!(
+            renderer
+                .downloadables
+                .set
+                .iter(&guard)
+                .collect::<HashSet<&Downloadable>>(),
+            HashSet::from([
+                &Downloadable::new(
+                    Url::parse(
+                        "https://s3.us-west-2.amazonaws.com/secure.notion-static.com/a8c4f962-7f7a-45cd-a2a5-ffe295afa355/moving_enemy.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAT73L2G45EIPT3X45%2F20221206%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20221206T002733Z&X-Amz-Expires=3600&X-Amz-Signature=039e735804116d7f8cad60c8719fd61ff58438f408c8cf1401a3fbd70939495b&X-Amz-SignedHeaders=host&x-id=GetObject"
+                    ).unwrap(),
+                    PathBuf::from("media/c180005ad8de4cd587add47d8c2fb0f3.mp4"),
                 ).unwrap(),
             ])
         );
