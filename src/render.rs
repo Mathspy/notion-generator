@@ -366,7 +366,7 @@ impl<'html> HtmlRenderer<'html> {
                     // https://stackoverflow.com/a/58468470/3018913
                     html! {
                         figure id=(block.id) {
-                            video src=(downloadable.src_path()) {
+                            video controls src=(downloadable.src_path()) {
                                 p {
                                     "Unfortunately looks like your browser doesn't support videos."
                                     a href=(downloadable.src_path()) {
@@ -1626,7 +1626,7 @@ mod tests {
             .into_string();
         assert_eq!(
             markup,
-            r#"<figure id="c180005ad8de4cd587add47d8c2fb0f3"><video src="/media/c180005ad8de4cd587add47d8c2fb0f3.mp4"><p>Unfortunately looks like your browser doesn't support videos.<a href="/media/c180005ad8de4cd587add47d8c2fb0f3.mp4">But no worries you can click me to download the video!</a></p></video><figcaption>A video of two circles, one pink and one red where the pink is moving and stopping based on user input while the red one is chasing it relentlessly at a fixed velocity</figcaption></figure>"#,
+            r#"<figure id="c180005ad8de4cd587add47d8c2fb0f3"><video controls src="/media/c180005ad8de4cd587add47d8c2fb0f3.mp4"><p>Unfortunately looks like your browser doesn't support videos.<a href="/media/c180005ad8de4cd587add47d8c2fb0f3.mp4">But no worries you can click me to download the video!</a></p></video><figcaption>A video of two circles, one pink and one red where the pink is moving and stopping based on user input while the red one is chasing it relentlessly at a fixed velocity</figcaption></figure>"#,
         );
         let guard = renderer.downloadables.set.guard();
         assert_eq!(
