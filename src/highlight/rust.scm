@@ -138,6 +138,12 @@
   "await"
 ] @keyword.control
 
+"use" @keyword.control.import
+(mod_item "mod" @keyword.control.import !body)
+(use_as_clause "as" @keyword.control.import)
+
+(type_cast_expression "as" @keyword.operator)
+
 [
   (crate)
   (super)
