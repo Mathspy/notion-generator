@@ -5,7 +5,7 @@ use tree_sitter_highlight::{HighlightConfiguration, Highlighter, HtmlRenderer};
 
 const RUST_HIGHLIGHTS: &str = include_str!("./rust.scm");
 
-const HIGHLIGHTS: [&str; 17] = [
+const HIGHLIGHTS: [&str; 18] = [
     "attribute",
     "comment",
     "constant",
@@ -19,6 +19,7 @@ const HIGHLIGHTS: [&str; 17] = [
     "operator",
     "punctuation",
     "string",
+    "turbofish",
     "type.builtin",
     "type",
     "variable.builtin",
@@ -71,8 +72,15 @@ pub fn highlight(lang: &Language, code: &str, id: NotionId) -> Result<Markup> {
         .highlight(&config, code.as_bytes(), None, |_| None)
         .unwrap();
 
-    let classes = HIGHLIGHTS
-        .map(|highlight| format!(r#"class="{}""#, highlight.replace('.', " ")).into_bytes());
+    let classes = HIGHLIGHTS.map(|highlight| {
+        format!(
+            r#"class="{}""#,
+            highlight
+                .replace('.', " ")
+                .replace("turbofish", "punctuation turbofish")
+        )
+        .into_bytes()
+    });
 
     renderer
         .render(events, code.as_bytes(), &|highlight| &classes[highlight.0])

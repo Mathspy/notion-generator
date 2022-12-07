@@ -13,7 +13,39 @@
 ; overrides are unnecessary.
 ; -------
 
+; -------
+; MATHY:
+; Being absurd and loving turbofish
+;
+; Rest in Peace Anna <3 I wish I knew you
+; -------
 
+; captures generic type turbofishes <Option<()>>::
+(scoped_identifier
+  path: (bracketed_type ["<" ">"] @turbofish)
+  "::" @turbofish
+)
+
+; alternative to the above that also catches part of turbospiders making them
+; look like turbofishes that grew four eyes AKA State::<u8>::default();
+;
+; (scoped_identifier
+;   [
+;     "::" @turbofish
+;     path: ([
+;       (bracketed_type ["<" ">"] @turbofish)
+;       (generic_type
+;         (type_arguments (["<" ">"]) @turbofish)
+;       )
+;     ])
+;  ]
+; )
+
+; captures generic function turbofishes iter::<Vec<_>>()
+(generic_function
+  "::" @turbofish
+  (type_arguments ["<" ">"] @turbofish)
+)
 
 ; -------
 ; Types
