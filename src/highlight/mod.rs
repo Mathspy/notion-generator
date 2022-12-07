@@ -124,7 +124,9 @@ I hope you have a great day!</code></pre>"#
     #[test]
     fn rust_highlighting() {
         let tests_dir = Path::new(file!())
-            .join("../tests/rust")
+            .parent()
+            .unwrap()
+            .join("tests/rust")
             .canonicalize()
             .unwrap();
 
