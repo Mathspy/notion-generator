@@ -5,4 +5,5 @@ fn main() {
 
     // turbospider, a rare species
     Result::<(), _>::Err(());
+    State::<u8>::default();
 }
