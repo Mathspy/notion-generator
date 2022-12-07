@@ -257,6 +257,7 @@
 ; MATHY:
 ; Removed meta_item and inner_attribute_item so that the full
 ; attribute macro gets captured with a single @attribute
+; Also use @attribute instead of @function.macro for attribute_item
 (attribute_item) @attribute
 
 (macro_definition
@@ -270,7 +271,7 @@
   "!" @function.macro)
 
 (metavariable) @variable.parameter
-(fragment_specifier) @variable.parameter
+(fragment_specifier) @type
 
 
 

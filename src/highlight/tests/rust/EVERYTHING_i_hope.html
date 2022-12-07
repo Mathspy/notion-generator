@@ -67,7 +67,7 @@
 <span class="punctuation">}</span>
 
 <span class="keyword">macro_rules!</span> <span class="function macro">print_result</span> <span class="punctuation">{</span>
-    <span class="punctuation">(</span><span class="variable">$expression</span>:<span class="variable">expr</span><span class="punctuation">)</span> <span class="operator">=&gt;</span> <span class="punctuation">{</span>
+    <span class="punctuation">(</span><span class="variable">$expression</span>:<span class="type">expr</span><span class="punctuation">)</span> <span class="operator">=&gt;</span> <span class="punctuation">{</span>
         <span class="variable">println</span>!<span class="punctuation">(</span><span class="string">&quot;{:?} = {:?}&quot;</span>, <span class="variable">stringify</span>!<span class="punctuation">(</span><span class="variable">$expression</span><span class="punctuation">)</span>, <span class="variable">$expression</span><span class="punctuation">)</span>;
     <span class="punctuation">}</span><span class="punctuation">;</span>
 <span class="punctuation">}</span>
