@@ -196,6 +196,7 @@ mod deserializers {
             ty: &'a str,
             database_id: Option<String>,
             page_id: Option<String>,
+            block_id: Option<String>,
             workspace: Option<bool>,
         }
 
@@ -227,6 +228,20 @@ mod deserializers {
                     }
                 } else {
                     Err(D::Error::missing_field("workspace"))
+                }
+            }
+            "block_id" => {
+                if let Some(id) = parent.block_id {
+                    Ok(PageParent::Block {
+                        id: id.parse().map_err(|_| {
+                            D::Error::invalid_value(
+                                Unexpected::Str(&id),
+                                &"expected `block_id` to be a valid notion id since parent type is block_id",
+                            )
+                        })?,
+                    })
+                } else {
+                    Err(D::Error::missing_field("database_id"))
                 }
             }
             ty => Err(D::Error::invalid_value(
@@ -465,6 +480,7 @@ pub enum PageParent {
     Database { id: String },
     Page { id: String },
     Workspace,
+    Block { id: NotionId },
 }
 
 pub mod properties {
