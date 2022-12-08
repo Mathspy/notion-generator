@@ -23,10 +23,10 @@ reqwest = { version = "0.11.12", default-features = false, features = ["json", "
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 tokio = { version = "1", features = ["fs"] }
-tree-sitter = { version = "0.20" }
-tree-sitter-highlight = { version = "0.20" }
-tree-sitter-rust = { version = "0.20" }
-tree-sitter-toml = { version = "0.20" }
+tree-sitter = { version = "0.20.3" }
+tree-sitter-highlight = { version = "0.20.1" }
+tree-sitter-rust = { version = "0.20.3" }
+tree-sitter-toml = { version = "0.20.0" }
 uuid = { version = "0.8", features = ["serde"] }
 tower = { version = "0.4", features = ["buffer", "limit", "util"] }
 

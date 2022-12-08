@@ -13,7 +13,39 @@
 ; overrides are unnecessary.
 ; -------
 
+; -------
+; MATHY:
+; Being absurd and loving turbofish
+;
+; Rest in Peace Anna <3 I wish I knew you
+; -------
 
+; captures generic type turbofishes <Option<()>>::
+(scoped_identifier
+  path: (bracketed_type ["<" ">"] @turbofish)
+  "::" @turbofish
+)
+
+; alternative to the above that also catches part of turbospiders making them
+; look like turbofishes that grew four eyes AKA State::<u8>::default();
+;
+; (scoped_identifier
+;   [
+;     "::" @turbofish
+;     path: ([
+;       (bracketed_type ["<" ">"] @turbofish)
+;       (generic_type
+;         (type_arguments (["<" ">"]) @turbofish)
+;       )
+;     ])
+;  ]
+; )
+
+; captures generic function turbofishes iter::<Vec<_>>()
+(generic_function
+  "::" @turbofish
+  (type_arguments ["<" ">"] @turbofish)
+)
 
 ; -------
 ; Types
@@ -88,6 +120,8 @@
     "<"
     ">"
   ] @punctuation.bracket)
+(closure_parameters
+  "|" @punctuation.bracket)
 
 ; ---
 ; Variables
@@ -106,8 +140,6 @@
   value: (identifier)? @variable
   field: (field_identifier) @variable.other.member))
 
-(arguments
-  (identifier) @variable.parameter)
 (parameter
 	pattern: (identifier) @variable.parameter)
 (closure_parameters
@@ -120,23 +152,37 @@
 ; -------
 
 (for_expression
-  "for" @keyword.control)
+  "for" @keyword.control.repeat)
 ((identifier) @keyword.control
   (#match? @keyword.control "^yield$"))
-[
-  "while"
-  "loop"
-  "in"
-  "break"
-  "continue"
 
+"in" @keyword.control
+
+[
   "match"
   "if"
   "else"
+] @keyword.control.conditional
+
+[
+  "while"
+  "loop"
+] @keyword.control.repeat
+
+[
+  "break"
+  "continue"
+
   "return"
 
   "await"
-] @keyword.control
+] @keyword.control.return
+
+"use" @keyword.control.import
+(mod_item "mod" @keyword.control.import !body)
+(use_as_clause "as" @keyword.control.import)
+
+(type_cast_expression "as" @keyword.operator)
 
 [
   (crate)
@@ -147,31 +193,44 @@
   "mod"
   "extern"
 
-  "fn"
-  "struct"
-  "enum"
   "impl"
   "where"
   "trait"
   "for"
 
-  "type"
-  "union"
   "unsafe"
   "default"
   "macro_rules!"
 
-  "let"
-  "ref"
-  "move"
-
-  "dyn"
-  "static"
-  "const"
   "async"
 ] @keyword
 
-(mutable_specifier) @keyword.mut
+[
+  "struct"
+  "enum"
+  "union"
+
+  "type"
+] @keyword.storage.type
+
+"let" @keyword.storage
+
+"fn" @keyword.function
+
+(mutable_specifier) @keyword.storage.modifier.mut
+
+; MATHY:
+; I am not using these since & is an operator not a keyword
+; (reference_type "&" @keyword.storage.modifier.ref)
+; (self_parameter "&" @keyword.storage.modifier.ref)
+
+[
+  "static"
+  "const"
+  "ref"
+  "move"
+  "dyn"
+] @keyword.storage.modifier
 
 ; TODO: variable.mut to highlight mutable identifiers via locals.scm
 
@@ -180,7 +239,7 @@
 ; -------
 
 ((identifier) @constant
- (#match? @constant "^[A-Z][A-Z\\d_]+$"))
+ (#match? @constant "^[A-Z][A-Z\\d_]*$"))
 
 ; ---
 ; PascalCase identifiers in call_expressions (e.g. `Ok()`)
@@ -250,6 +309,9 @@
 (function_item
   name: (identifier) @function)
 
+(function_signature_item
+   name: (identifier) @function)
+
 ; ---
 ; Macros
 ; ---
@@ -257,6 +319,7 @@
 ; MATHY:
 ; Removed meta_item and inner_attribute_item so that the full
 ; attribute macro gets captured with a single @attribute
+; Also use @attribute instead of @function.macro for attribute_item
 (attribute_item) @attribute
 
 (macro_definition
@@ -270,7 +333,7 @@
   "!" @function.macro)
 
 (metavariable) @variable.parameter
-(fragment_specifier) @variable.parameter
+(fragment_specifier) @type
 
 
 
@@ -312,6 +375,7 @@
   ">>"
   "<<"
   ">>="
+  "<<="
   "@"
   ".."
   "..="
