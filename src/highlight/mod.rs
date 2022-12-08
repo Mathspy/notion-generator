@@ -101,6 +101,7 @@ mod tests {
 
     use super::highlight;
     use crate::response::Language;
+    use insta::Settings;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -119,43 +120,61 @@ I hope you have a great day!</code></pre>"#
     }
 
     #[test]
-    fn rust_highlighting() {
+    fn highlighting_tests() {
+        let mut settings = Settings::new();
+        settings.set_prepend_module_to_snapshot(false);
+        settings.set_snapshot_path("tests");
+        settings.set_omit_expression(true);
+
         let tests_dir = Path::new(file!())
             .parent()
             .unwrap()
-            .join("tests/rust")
+            .join("tests")
             .canonicalize()
             .unwrap();
 
         fs::read_dir(&tests_dir)
             .unwrap()
-            .filter_map(|file| {
+            .flat_map(|folder| {
+                let path = folder.as_ref().unwrap().path();
+                let lang = path
+                    .file_name()
+                    .unwrap()
+                    .to_os_string()
+                    .to_string_lossy()
+                    .into_owned();
+
+                fs::read_dir(&path)
+                    .unwrap()
+                    .map(move |file| (lang.clone(), file))
+            })
+            .filter_map(|(lang, file)| {
                 let path = file.as_ref().unwrap().path();
                 let extension = path.extension().unwrap().to_str().unwrap();
-                if extension == "rs" {
-                    Some(path)
+                if extension != "snap" {
+                    Some((lang, path))
                 } else {
                     None
                 }
             })
-            .for_each(|path| {
-                let mut html_file = path.clone();
-                html_file.set_extension("html");
+            .for_each(|(lang, path)| {
                 let code = fs::read_to_string(tests_dir.join(&path)).unwrap();
-                let html = fs::read_to_string(tests_dir.join(html_file)).unwrap();
+                let snap_name = path.file_name().unwrap().to_str().unwrap();
 
-                assert_eq!(
-                    highlight(
-                        &Language::Rust,
-                        &code,
-                        "5e845049255f423296fd6f20449be0bc".parse().unwrap()
+                settings.set_snapshot_path(tests_dir.join(&lang));
+                settings.bind(|| {
+                    insta::assert_snapshot!(
+                        snap_name,
+                        highlight(
+                            &serde_json::from_str::<Language>(&format!("\"{lang}\""))
+                                .expect(&format!("unexpected language {lang}")),
+                            &code,
+                            "5e845049255f423296fd6f20449be0bc".parse().unwrap()
+                        )
+                        .unwrap()
+                        .into_string()
                     )
-                    .unwrap()
-                    .into_string(),
-                    html.trim(),
-                    "generated html didn't match output for: {}",
-                    path.display()
-                );
+                })
             });
     }
 
