@@ -29,24 +29,21 @@ const HIGHLIGHTS: [&str; 18] = [
 pub fn highlight(lang: &Language, code: &str, id: NotionId) -> Result<Markup> {
     let (tree_sitter_lang, highlights, code, lang_name) = match (lang, code) {
         (Language::PlainText, code) => {
-            if let Some(code) = code.strip_prefix("%$NOTION-HACK$%toml\n") {
-                (
-                    tree_sitter_toml::language(),
-                    tree_sitter_toml::HIGHLIGHT_QUERY,
-                    code,
-                    "toml",
-                )
-            } else {
-                return Ok(html! {
-                    pre id=(id) class="plain_text" {
-                        code class="plain_text" {
-                            (code)
-                        }
+            return Ok(html! {
+                pre id=(id) class="plain_text" {
+                    code class="plain_text" {
+                        (code)
                     }
-                });
-            }
+                }
+            });
         }
         (Language::Rust, code) => (tree_sitter_rust::language(), RUST_HIGHLIGHTS, code, "rust"),
+        (Language::Toml, code) => (
+            tree_sitter_toml::language(),
+            tree_sitter_toml::HIGHLIGHT_QUERY,
+            code,
+            "toml",
+        ),
         _ => bail!(
             "Unsupported language {}",
             serde_json::to_value(lang)
