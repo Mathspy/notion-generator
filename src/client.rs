@@ -121,7 +121,7 @@ impl NotionClient {
 
     fn build_request(&self, method: Method, url: &str) -> Result<RequestBuilder> {
         RequestBuilder::new(method, url)?
-            .header("Notion-Version", "2021-08-16")?
+            .header("Notion-Version", "2022-06-28")?
             .bearer_auth(&self.auth_token)
     }
 
