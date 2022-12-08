@@ -653,45 +653,54 @@ pub enum ListType {
 #[serde(rename_all = "snake_case")]
 pub enum BlockType {
     Paragraph {
+        #[serde(rename = "rich_text")]
         text: Vec<RichText>,
         #[serde(default)]
         children: Vec<Block>,
     },
     #[serde(rename = "heading_1")]
     HeadingOne {
+        #[serde(rename = "rich_text")]
         text: Vec<RichText>,
     },
     #[serde(rename = "heading_2")]
     HeadingTwo {
+        #[serde(rename = "rich_text")]
         text: Vec<RichText>,
     },
     #[serde(rename = "heading_3")]
     HeadingThree {
+        #[serde(rename = "rich_text")]
         text: Vec<RichText>,
     },
     Callout {
+        #[serde(rename = "rich_text")]
         text: Vec<RichText>,
         icon: EmojiOrFile,
         #[serde(default)]
         children: Vec<Block>,
     },
     Quote {
+        #[serde(rename = "rich_text")]
         text: Vec<RichText>,
         #[serde(default)]
         children: Vec<Block>,
     },
     BulletedListItem {
+        #[serde(rename = "rich_text")]
         text: Vec<RichText>,
         #[serde(default)]
         children: Vec<Block>,
     },
     NumberedListItem {
+        #[serde(rename = "rich_text")]
         text: Vec<RichText>,
         #[serde(default)]
         children: Vec<Block>,
     },
     ToDo {
         checked: bool,
+        #[serde(rename = "rich_text")]
         text: Vec<RichText>,
         #[serde(default)]
         children: Vec<Block>,
@@ -699,6 +708,7 @@ pub enum BlockType {
     // Toggle
     Code {
         language: Language,
+        #[serde(rename = "rich_text")]
         text: Vec<RichText>,
         // TODO(NOTION): Notion docs say text should be a string but it's a rich text instead
         // text: String,
@@ -1561,7 +1571,7 @@ mod tests {
               "archived": false,
               "type": "paragraph",
               "paragraph": {
-                "text": [{
+                "rich_text": [{
                   "type": "text",
                   "text": {
                     "content": "Cool test",
@@ -1624,7 +1634,7 @@ mod tests {
                   "archived": false,
                   "type": "heading_1",
                   "heading_1": {
-                    "text": [
+                    "rich_text": [
                       {
                         "type": "text",
                         "text": {
@@ -1654,7 +1664,7 @@ mod tests {
                   "archived": false,
                   "type": "heading_2",
                   "heading_2": {
-                    "text": [
+                    "rich_text": [
                       {
                         "type": "text",
                         "text": {
@@ -1684,7 +1694,7 @@ mod tests {
                   "archived": false,
                   "type": "heading_3",
                   "heading_3": {
-                    "text": [
+                    "rich_text": [
                       {
                         "type": "text",
                         "text": {
@@ -1795,7 +1805,7 @@ mod tests {
                   "archived": false,
                   "type": "callout",
                   "callout": {
-                    "text": [
+                    "rich_text": [
                       {
                         "type": "text",
                         "text": {
@@ -1829,7 +1839,7 @@ mod tests {
                   "archived": false,
                   "type": "callout",
                   "callout": {
-                    "text": [
+                    "rich_text": [
                       {
                         "type": "text",
                         "text": {
@@ -1866,7 +1876,7 @@ mod tests {
                   "archived": false,
                   "type": "callout",
                   "callout": {
-                    "text": [
+                    "rich_text": [
                       {
                         "type": "text",
                         "text": {
@@ -1991,7 +2001,7 @@ mod tests {
               "archived": false,
               "type": "quote",
               "quote": {
-                "text": [
+                "rich_text": [
                   {
                     "type": "text",
                     "text": {
@@ -2053,7 +2063,7 @@ mod tests {
               "archived": false,
               "type": "bulleted_list_item",
               "bulleted_list_item": {
-                "text": [
+                "rich_text": [
                   {
                     "type": "text",
                     "text": { "content": "This is some cool list", "link": null },
@@ -2079,7 +2089,7 @@ mod tests {
                     "archived": false,
                     "type": "numbered_list_item",
                     "numbered_list_item": {
-                      "text": [
+                      "rich_text": [
                         {
                           "type": "text",
                           "text": {
@@ -2108,7 +2118,7 @@ mod tests {
                           "archived": false,
                           "type": "bulleted_list_item",
                           "bulleted_list_item": {
-                            "text": [
+                            "rich_text": [
                               {
                                 "type": "text",
                                 "text": {
@@ -2137,7 +2147,7 @@ mod tests {
                                 "archived": false,
                                 "type": "numbered_list_item",
                                 "numbered_list_item": {
-                                  "text": [
+                                  "rich_text": [
                                     {
                                       "type": "text",
                                       "text": { "content": "Listception", "link": null },
@@ -2165,7 +2175,7 @@ mod tests {
                                 "archived": false,
                                 "type": "numbered_list_item",
                                 "numbered_list_item": {
-                                  "text": [
+                                  "rich_text": [
                                     {
                                       "type": "text",
                                       "text": { "content": "Listception", "link": null },
@@ -2317,7 +2327,7 @@ mod tests {
               "archived": false,
               "type": "to_do",
               "to_do": {
-                "text": [
+                "rich_text": [
                   {
                     "type": "text",
                     "text": {
@@ -2379,7 +2389,7 @@ mod tests {
               "archived": false,
               "type": "code",
               "code": {
-                "text": [
+                "rich_text": [
                   {
                     "type": "text",
                     "text": {
