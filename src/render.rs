@@ -726,10 +726,9 @@ mod tests {
         response::{
             properties::TitleProperty, Annotations, Block, BlockType, Color, Emoji, EmojiOrFile,
             File, Language, NotionDate, Page, PageParent, RichText, RichTextLink,
-            RichTextMentionType, RichTextType, Time,
+            RichTextMentionType, RichTextType,
         },
     };
-    use either::Either;
     use maud::Render;
     use pretty_assertions::assert_eq;
     use reqwest::Url;
@@ -737,7 +736,6 @@ mod tests {
         collections::{HashMap, HashSet},
         path::PathBuf,
     };
-    use time::macros::{date, datetime};
 
     #[test]
     fn render_unsupported() {
@@ -1993,10 +1991,7 @@ mod tests {
             annotations: Default::default(),
             ty: RichTextType::Mention {
                 mention: RichTextMentionType::Date(NotionDate {
-                    start: Time {
-                        original: "2021-11-07T02:59:00.000-08:00".to_string(),
-                        parsed: Either::Right(datetime!(2021-11-07 02:59-08:00)),
-                    },
+                    start: "2021-11-07T02:59:00.000-08:00".parse().unwrap(),
                     end: None,
                     time_zone: None,
                 }),
@@ -2016,14 +2011,8 @@ mod tests {
             annotations: Default::default(),
             ty: RichTextType::Mention {
                 mention: RichTextMentionType::Date(NotionDate {
-                    start: Time {
-                        original: "2021-12-05".to_string(),
-                        parsed: Either::Left(date!(2021 - 12 - 05)),
-                    },
-                    end: Some(Time {
-                        original: "2021-12-06".to_string(),
-                        parsed: Either::Left(date!(2021 - 12 - 06)),
-                    }),
+                    start: "2021-12-05".parse().unwrap(),
+                    end: Some("2021-12-06".parse().unwrap()),
                     time_zone: None,
                 }),
             },
