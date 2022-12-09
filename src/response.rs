@@ -97,38 +97,16 @@ impl PlainText for Vec<&RichText> {
 
 mod deserializers {
     use super::{File, PageParent, RichTextLink, Time};
-    use either::Either;
     use serde::{
         de::{Error, Unexpected},
         Deserialize, Deserializer,
     };
     use std::borrow::Cow;
-    use time::{
-        format_description::{well_known::Rfc3339, FormatItem},
-        macros::format_description,
-        Date, OffsetDateTime,
-    };
 
-    const DATE_FORMAT: &[FormatItem<'_>] = format_description!("[year]-[month]-[day]");
-
-    fn time_inner<'a, D: Deserializer<'a>>(input: String) -> Result<Time, D::Error> {
-        if let Ok(date) = Date::parse(&input, DATE_FORMAT) {
-            return Ok(Time {
-                original: input,
-                parsed: Either::Left(date),
-            });
-        }
-
-        if let Ok(datetime) = OffsetDateTime::parse(&input, &Rfc3339) {
-            return Ok(Time {
-                original: input,
-                parsed: Either::Right(datetime),
-            });
-        }
-
-        Err(D::Error::custom(
-            "data matched neither a date (YYYY-MM-DD) nor a datetime (RFC3339)",
-        ))
+    fn time_inner<'a, D: Deserializer<'a>>(input: &'a str) -> Result<Time, D::Error> {
+        input.parse().map_err(|_| {
+            D::Error::custom("data matched neither a date (YYYY-MM-DD) nor a datetime (RFC3339)")
+        })
     }
 
     pub fn time<'a, D: Deserializer<'a>>(deserializer: D) -> Result<Time, D::Error> {
@@ -301,6 +279,46 @@ pub struct Time {
     // date(time) later
     pub original: String,
     pub parsed: Either<Date, OffsetDateTime>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InvalidTime;
+
+impl std::fmt::Display for InvalidTime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("data matched neither a date (YYYY-MM-DD) nor a datetime (RFC3339)")?;
+
+        Ok(())
+    }
+}
+
+impl FromStr for Time {
+    type Err = InvalidTime;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        use time::{
+            format_description::{well_known::Rfc3339, FormatItem},
+            macros::format_description,
+        };
+
+        const DATE_FORMAT: &[FormatItem<'_>] = format_description!("[year]-[month]-[day]");
+
+        if let Ok(date) = Date::parse(input, DATE_FORMAT) {
+            return Ok(Time {
+                original: input.to_owned(),
+                parsed: Either::Left(date),
+            });
+        }
+
+        if let Ok(datetime) = OffsetDateTime::parse(input, &Rfc3339) {
+            return Ok(Time {
+                original: input.to_owned(),
+                parsed: Either::Right(datetime),
+            });
+        }
+
+        Err(InvalidTime)
+    }
 }
 
 impl PartialEq<Date> for Time {
