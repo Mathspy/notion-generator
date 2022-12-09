@@ -722,7 +722,6 @@ version = "0.1.3"
 dependencies = [
  "anyhow",
  "async-recursion",
- "either",
  "emoji",
  "flurry",
  "futures-util",

@@ -12,7 +12,6 @@ rust-version = "1.57"
 anyhow = { version = "1" }
 async-recursion = { version = "0.3" }
 time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
-either = { version = "1" }
 emoji = { version = "0.2" }
 flurry = { version = "0.3" }
 futures-util = { version = "0.3" }
