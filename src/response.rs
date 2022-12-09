@@ -270,8 +270,10 @@ impl PartialEq<TimeInner> for TimeInner {
     }
 }
 
-// TODO: The original and parsed shouldn't really be pub and instead should use getter methods to
-// ensure they stay in sync and can't be changed in an invalid way
+/// Time data from Notion.
+///
+/// Notion Times can either be dates or datetimes, this information is perserved internally
+/// and exposed via the utility methods available on Time
 #[derive(Debug, Eq, Clone)]
 pub struct Time {
     // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
@@ -281,6 +283,10 @@ pub struct Time {
 }
 
 impl Time {
+    /// Get date infalliable.
+    ///
+    /// If `Time` is a date it will be returned, otherwise if it's a datetime it will truncate the
+    /// time part of datetime and return the date
     pub fn date(&self) -> Date {
         match self.parsed {
             TimeInner::Date(date) => date,
@@ -288,6 +294,10 @@ impl Time {
         }
     }
 
+    /// Get datetime infalliable.
+    ///
+    /// If `Time` is a datetime it will be returned, otherwise if it's a date it will extend the date
+    /// by considering time to be midnight and timezone to be UTC
     pub fn datetime(&self) -> OffsetDateTime {
         match self.parsed {
             TimeInner::Date(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
@@ -295,6 +305,7 @@ impl Time {
         }
     }
 
+    /// Get date if the `Time` is date otherwise will return an `Err(OffsetDateTime)`
     pub fn get_date(&self) -> Result<Date, OffsetDateTime> {
         match self.parsed {
             TimeInner::Date(date) => Ok(date),
@@ -302,6 +313,7 @@ impl Time {
         }
     }
 
+    /// Get datetime if the `Time` is datetime otherwise will return an `Err(Date)`
     pub fn get_datetime(&self) -> Result<OffsetDateTime, Date> {
         match self.parsed {
             TimeInner::Date(date) => Err(date),
@@ -309,6 +321,7 @@ impl Time {
         }
     }
 
+    /// Returns the original time string that it was parsed from
     pub fn original(&self) -> &str {
         &self.original
     }
