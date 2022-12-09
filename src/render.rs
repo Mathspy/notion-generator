@@ -6,7 +6,6 @@ use crate::response::{
     RichTextMentionType, RichTextType, Time,
 };
 use anyhow::Result;
-use either::Either;
 use itertools::Itertools;
 use maud::{html, Escaper, Markup, PreEscaped, Render, DOCTYPE};
 use std::collections::HashMap;
@@ -655,7 +654,7 @@ impl<'a> Render for RichTextRenderer<'a> {
                         // They have two timestamp formats, one for dates only: 2021-12-06
                         // and one for datetime which seems to be Rfc3339 compliant but with
                         // only 3 subsecond places, which is exactly what we need
-                        buffer.push_str(&time.original);
+                        buffer.push_str(time.original());
                         buffer.push_str("\">");
 
                         const READABLE_DATE: &[FormatItem<'_>] =
@@ -664,15 +663,13 @@ impl<'a> Render for RichTextRenderer<'a> {
                             "[month repr:long] [day], [year] [hour repr:12]:[minute] [period case:lower]"
                         );
 
-                        match time.parsed {
-                            Either::Left(date) => {
-                                buffer.push_str(&date.format(READABLE_DATE).unwrap())
-                            }
+                        match time.get_date() {
+                            Ok(date) => buffer.push_str(&date.format(READABLE_DATE).unwrap()),
                             // TODO: Either of the following
                             // 1) Support letting people customize the timezone for all blocks
                             // 2) Detect the timezone name and append it
                             // 3) Ask Notion devs to add timezone name to API response
-                            Either::Right(datetime) => buffer.push_str(
+                            Err(datetime) => buffer.push_str(
                                 &datetime
                                     .to_offset(time::UtcOffset::UTC)
                                     .format(READABLE_DATETIME)

@@ -1,4 +1,3 @@
-use either::Either;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
@@ -253,14 +252,66 @@ pub enum RichTextLink {
     },
 }
 
+#[derive(Debug, Eq, Clone)]
+enum TimeInner {
+    Date(Date),
+    DateTime(OffsetDateTime),
+}
+
+impl PartialEq<TimeInner> for TimeInner {
+    fn eq(&self, other: &TimeInner) -> bool {
+        use TimeInner::{Date, DateTime};
+
+        match (self, other) {
+            (Date(this), Date(other)) => this == other,
+            (DateTime(this), DateTime(other)) => this == other,
+            _ => false,
+        }
+    }
+}
+
 // TODO: The original and parsed shouldn't really be pub and instead should use getter methods to
 // ensure they stay in sync and can't be changed in an invalid way
 #[derive(Debug, Eq, Clone)]
 pub struct Time {
     // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
     // date(time) later
-    pub original: String,
-    pub parsed: Either<Date, OffsetDateTime>,
+    original: String,
+    parsed: TimeInner,
+}
+
+impl Time {
+    pub fn date(&self) -> Date {
+        match self.parsed {
+            TimeInner::Date(date) => date,
+            TimeInner::DateTime(datetime) => datetime.date(),
+        }
+    }
+
+    pub fn datetime(&self) -> OffsetDateTime {
+        match self.parsed {
+            TimeInner::Date(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
+            TimeInner::DateTime(datetime) => datetime,
+        }
+    }
+
+    pub fn get_date(&self) -> Result<Date, OffsetDateTime> {
+        match self.parsed {
+            TimeInner::Date(date) => Ok(date),
+            TimeInner::DateTime(datetime) => Err(datetime),
+        }
+    }
+
+    pub fn get_datetime(&self) -> Result<OffsetDateTime, Date> {
+        match self.parsed {
+            TimeInner::Date(date) => Err(date),
+            TimeInner::DateTime(datetime) => Ok(datetime),
+        }
+    }
+
+    pub fn original(&self) -> &str {
+        &self.original
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -288,14 +339,14 @@ impl FromStr for Time {
         if let Ok(date) = Date::parse(input, DATE_FORMAT) {
             return Ok(Time {
                 original: input.to_owned(),
-                parsed: Either::Left(date),
+                parsed: TimeInner::Date(date),
             });
         }
 
         if let Ok(datetime) = OffsetDateTime::parse(input, &Rfc3339) {
             return Ok(Time {
                 original: input.to_owned(),
-                parsed: Either::Right(datetime),
+                parsed: TimeInner::DateTime(datetime),
             });
         }
 
@@ -318,19 +369,13 @@ impl<'de> Deserialize<'de> for Time {
 
 impl PartialEq<Date> for Time {
     fn eq(&self, other: &Date) -> bool {
-        match self.parsed {
-            Either::Left(date) => date.eq(other),
-            Either::Right(datetime) => datetime.date().eq(other),
-        }
+        self.date().eq(other)
     }
 }
 
 impl PartialOrd<Date> for Time {
     fn partial_cmp(&self, other: &Date) -> Option<std::cmp::Ordering> {
-        match self.parsed {
-            Either::Left(date) => date.partial_cmp(other),
-            Either::Right(datetime) => datetime.date().partial_cmp(other),
-        }
+        self.date().partial_cmp(other)
     }
 }
 
@@ -342,33 +387,13 @@ impl PartialEq<Time> for Time {
 
 impl PartialOrd<Time> for Time {
     fn partial_cmp(&self, other: &Time) -> Option<std::cmp::Ordering> {
-        let this = match self.parsed {
-            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
-            Either::Right(datetime) => datetime,
-        };
-
-        let other = match other.parsed {
-            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
-            Either::Right(datetime) => datetime,
-        };
-
-        this.partial_cmp(&other)
+        self.datetime().partial_cmp(&other.datetime())
     }
 }
 
 impl Ord for Time {
     fn cmp(&self, other: &Time) -> std::cmp::Ordering {
-        let this = match self.parsed {
-            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
-            Either::Right(datetime) => datetime,
-        };
-
-        let other = match other.parsed {
-            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
-            Either::Right(datetime) => datetime,
-        };
-
-        this.cmp(&other)
+        self.datetime().cmp(&other.datetime())
     }
 }
 
@@ -929,9 +954,8 @@ mod tests {
         properties::{DateProperty, RichTextProperty},
         Block, BlockType, Emoji, EmojiOrFile, Error, ErrorCode, File, Language, List, NotionDate,
         Page, PageParent, RichText, RichTextLink, RichTextMentionType, RichTextType, Time,
-        UserType,
+        TimeInner, UserType,
     };
-    use either::Either;
     use pretty_assertions::assert_eq;
     use serde::Deserialize;
     use time::macros::{date, datetime};
@@ -1223,7 +1247,7 @@ mod tests {
                     mention: RichTextMentionType::Date(NotionDate {
                         start: Time {
                             original: "2021-11-07T02:59:00.000-08:00".to_string(),
-                            parsed: Either::Right(datetime!(2021-11-07 10:59 UTC))
+                            parsed: TimeInner::DateTime(datetime!(2021-11-07 10:59 UTC))
                         },
                         end: None,
                         time_zone: None,
@@ -1265,11 +1289,11 @@ mod tests {
                     mention: RichTextMentionType::Date(NotionDate {
                         start: Time {
                             original: "2021-12-05".to_string(),
-                            parsed: Either::Left(date!(2021 - 12 - 05))
+                            parsed: TimeInner::Date(date!(2021 - 12 - 05))
                         },
                         end: Some(Time {
                             original: "2021-12-06".to_string(),
-                            parsed: Either::Left(date!(2021 - 12 - 06))
+                            parsed: TimeInner::Date(date!(2021 - 12 - 06))
                         }),
                         time_zone: None,
                     }),
