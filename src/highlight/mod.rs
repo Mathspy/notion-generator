@@ -102,22 +102,6 @@ mod tests {
     use super::highlight;
     use crate::response::Language;
     use insta::Settings;
-    use pretty_assertions::assert_eq;
-
-    #[test]
-    fn plain_text() {
-        assert_eq!(
-            highlight(
-                &Language::PlainText,
-                "Hey there, lovely friend!\nI hope you have a great day!",
-                "5e845049255f423296fd6f20449be0bc".parse().unwrap()
-            )
-            .unwrap()
-            .into_string(),
-            r#"<pre id="5e845049255f423296fd6f20449be0bc" class="plain_text"><code class="plain_text">Hey there, lovely friend!
-I hope you have a great day!</code></pre>"#
-        );
-    }
 
     #[test]
     fn highlighting_tests() {
