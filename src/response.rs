@@ -1,4 +1,3 @@
-use either::Either;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
@@ -96,52 +95,12 @@ impl PlainText for Vec<&RichText> {
 }
 
 mod deserializers {
-    use super::{File, PageParent, RichTextLink, Time};
-    use either::Either;
+    use super::{File, PageParent, RichTextLink};
     use serde::{
         de::{Error, Unexpected},
         Deserialize, Deserializer,
     };
     use std::borrow::Cow;
-    use time::{
-        format_description::{well_known::Rfc3339, FormatItem},
-        macros::format_description,
-        Date, OffsetDateTime,
-    };
-
-    const DATE_FORMAT: &[FormatItem<'_>] = format_description!("[year]-[month]-[day]");
-
-    fn time_inner<'a, D: Deserializer<'a>>(input: String) -> Result<Time, D::Error> {
-        if let Ok(date) = Date::parse(&input, DATE_FORMAT) {
-            return Ok(Time {
-                original: input,
-                parsed: Either::Left(date),
-            });
-        }
-
-        if let Ok(datetime) = OffsetDateTime::parse(&input, &Rfc3339) {
-            return Ok(Time {
-                original: input,
-                parsed: Either::Right(datetime),
-            });
-        }
-
-        Err(D::Error::custom(
-            "data matched neither a date (YYYY-MM-DD) nor a datetime (RFC3339)",
-        ))
-    }
-
-    pub fn time<'a, D: Deserializer<'a>>(deserializer: D) -> Result<Time, D::Error> {
-        time_inner::<D>(<_>::deserialize(deserializer)?)
-    }
-
-    pub fn optional_time<'a, D: Deserializer<'a>>(
-        deserializer: D,
-    ) -> Result<Option<Time>, D::Error> {
-        Option::deserialize(deserializer)?
-            .map(time_inner::<D>)
-            .transpose()
-    }
 
     pub fn optional_rich_text_link<'a, D: Deserializer<'a>>(
         deserializer: D,
@@ -293,31 +252,143 @@ pub enum RichTextLink {
     },
 }
 
-// TODO: The original and parsed shouldn't really be pub and instead should use getter methods to
-// ensure they stay in sync and can't be changed in an invalid way
+#[derive(Debug, Eq, Clone)]
+enum TimeInner {
+    Date(Date),
+    DateTime(OffsetDateTime),
+}
+
+impl PartialEq<TimeInner> for TimeInner {
+    fn eq(&self, other: &TimeInner) -> bool {
+        use TimeInner::{Date, DateTime};
+
+        match (self, other) {
+            (Date(this), Date(other)) => this == other,
+            (DateTime(this), DateTime(other)) => this == other,
+            _ => false,
+        }
+    }
+}
+
+/// Time data from Notion.
+///
+/// Notion Times can either be dates or datetimes, this information is perserved internally
+/// and exposed via the utility methods available on Time
 #[derive(Debug, Eq, Clone)]
 pub struct Time {
     // We keep the original to avoid needing to recreate it if we need an ISO 8601 formatted
     // date(time) later
-    pub original: String,
-    pub parsed: Either<Date, OffsetDateTime>,
+    original: String,
+    parsed: TimeInner,
+}
+
+impl Time {
+    /// Get date infalliable.
+    ///
+    /// If `Time` is a date it will be returned, otherwise if it's a datetime it will truncate the
+    /// time part of datetime and return the date
+    pub fn date(&self) -> Date {
+        match self.parsed {
+            TimeInner::Date(date) => date,
+            TimeInner::DateTime(datetime) => datetime.date(),
+        }
+    }
+
+    /// Get datetime infalliable.
+    ///
+    /// If `Time` is a datetime it will be returned, otherwise if it's a date it will extend the date
+    /// by considering time to be midnight and timezone to be UTC
+    pub fn datetime(&self) -> OffsetDateTime {
+        match self.parsed {
+            TimeInner::Date(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
+            TimeInner::DateTime(datetime) => datetime,
+        }
+    }
+
+    /// Get date if the `Time` is date otherwise will return an `Err(OffsetDateTime)`
+    pub fn get_date(&self) -> Result<Date, OffsetDateTime> {
+        match self.parsed {
+            TimeInner::Date(date) => Ok(date),
+            TimeInner::DateTime(datetime) => Err(datetime),
+        }
+    }
+
+    /// Get datetime if the `Time` is datetime otherwise will return an `Err(Date)`
+    pub fn get_datetime(&self) -> Result<OffsetDateTime, Date> {
+        match self.parsed {
+            TimeInner::Date(date) => Err(date),
+            TimeInner::DateTime(datetime) => Ok(datetime),
+        }
+    }
+
+    /// Returns the original time string that it was parsed from
+    pub fn original(&self) -> &str {
+        &self.original
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InvalidTime;
+
+impl std::fmt::Display for InvalidTime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("data matched neither a date (YYYY-MM-DD) nor a datetime (RFC3339)")?;
+
+        Ok(())
+    }
+}
+
+impl FromStr for Time {
+    type Err = InvalidTime;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        use time::{
+            format_description::{well_known::Rfc3339, FormatItem},
+            macros::format_description,
+        };
+
+        const DATE_FORMAT: &[FormatItem<'_>] = format_description!("[year]-[month]-[day]");
+
+        if let Ok(date) = Date::parse(input, DATE_FORMAT) {
+            return Ok(Time {
+                original: input.to_owned(),
+                parsed: TimeInner::Date(date),
+            });
+        }
+
+        if let Ok(datetime) = OffsetDateTime::parse(input, &Rfc3339) {
+            return Ok(Time {
+                original: input.to_owned(),
+                parsed: TimeInner::DateTime(datetime),
+            });
+        }
+
+        Err(InvalidTime)
+    }
+}
+
+impl<'de> Deserialize<'de> for Time {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        <&str>::deserialize(deserializer)?
+            .parse()
+            .map_err(D::Error::custom)
+    }
 }
 
 impl PartialEq<Date> for Time {
     fn eq(&self, other: &Date) -> bool {
-        match self.parsed {
-            Either::Left(date) => date.eq(other),
-            Either::Right(datetime) => datetime.date().eq(other),
-        }
+        self.date().eq(other)
     }
 }
 
 impl PartialOrd<Date> for Time {
     fn partial_cmp(&self, other: &Date) -> Option<std::cmp::Ordering> {
-        match self.parsed {
-            Either::Left(date) => date.partial_cmp(other),
-            Either::Right(datetime) => datetime.date().partial_cmp(other),
-        }
+        self.date().partial_cmp(other)
     }
 }
 
@@ -329,33 +400,13 @@ impl PartialEq<Time> for Time {
 
 impl PartialOrd<Time> for Time {
     fn partial_cmp(&self, other: &Time) -> Option<std::cmp::Ordering> {
-        let this = match self.parsed {
-            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
-            Either::Right(datetime) => datetime,
-        };
-
-        let other = match other.parsed {
-            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
-            Either::Right(datetime) => datetime,
-        };
-
-        this.partial_cmp(&other)
+        self.datetime().partial_cmp(&other.datetime())
     }
 }
 
 impl Ord for Time {
     fn cmp(&self, other: &Time) -> std::cmp::Ordering {
-        let this = match self.parsed {
-            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
-            Either::Right(datetime) => datetime,
-        };
-
-        let other = match other.parsed {
-            Either::Left(date) => date.with_time(time::Time::MIDNIGHT).assume_utc(),
-            Either::Right(datetime) => datetime,
-        };
-
-        this.cmp(&other)
+        self.datetime().cmp(&other.datetime())
     }
 }
 
@@ -390,9 +441,7 @@ pub enum UserType {
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct NotionDate {
-    #[serde(deserialize_with = "deserializers::time")]
     pub start: Time,
-    #[serde(deserialize_with = "deserializers::optional_time")]
     pub end: Option<Time>,
     // TODO(NOTION): This just got added to the API recently but it seems to never be returned
     // as a response, it's possible to set it if you're using the API to add/modify Notion though
@@ -918,9 +967,8 @@ mod tests {
         properties::{DateProperty, RichTextProperty},
         Block, BlockType, Emoji, EmojiOrFile, Error, ErrorCode, File, Language, List, NotionDate,
         Page, PageParent, RichText, RichTextLink, RichTextMentionType, RichTextType, Time,
-        UserType,
+        TimeInner, UserType,
     };
-    use either::Either;
     use pretty_assertions::assert_eq;
     use serde::Deserialize;
     use time::macros::{date, datetime};
@@ -1212,7 +1260,7 @@ mod tests {
                     mention: RichTextMentionType::Date(NotionDate {
                         start: Time {
                             original: "2021-11-07T02:59:00.000-08:00".to_string(),
-                            parsed: Either::Right(datetime!(2021-11-07 10:59 UTC))
+                            parsed: TimeInner::DateTime(datetime!(2021-11-07 10:59 UTC))
                         },
                         end: None,
                         time_zone: None,
@@ -1254,11 +1302,11 @@ mod tests {
                     mention: RichTextMentionType::Date(NotionDate {
                         start: Time {
                             original: "2021-12-05".to_string(),
-                            parsed: Either::Left(date!(2021 - 12 - 05))
+                            parsed: TimeInner::Date(date!(2021 - 12 - 05))
                         },
                         end: Some(Time {
                             original: "2021-12-06".to_string(),
-                            parsed: Either::Left(date!(2021 - 12 - 06))
+                            parsed: TimeInner::Date(date!(2021 - 12 - 06))
                         }),
                         time_zone: None,
                     }),

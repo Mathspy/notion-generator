@@ -6,7 +6,6 @@ use crate::response::{
     RichTextMentionType, RichTextType, Time,
 };
 use anyhow::Result;
-use either::Either;
 use itertools::Itertools;
 use maud::{html, Escaper, Markup, PreEscaped, Render, DOCTYPE};
 use std::collections::HashMap;
@@ -655,7 +654,7 @@ impl<'a> Render for RichTextRenderer<'a> {
                         // They have two timestamp formats, one for dates only: 2021-12-06
                         // and one for datetime which seems to be Rfc3339 compliant but with
                         // only 3 subsecond places, which is exactly what we need
-                        buffer.push_str(&time.original);
+                        buffer.push_str(time.original());
                         buffer.push_str("\">");
 
                         const READABLE_DATE: &[FormatItem<'_>] =
@@ -664,15 +663,13 @@ impl<'a> Render for RichTextRenderer<'a> {
                             "[month repr:long] [day], [year] [hour repr:12]:[minute] [period case:lower]"
                         );
 
-                        match time.parsed {
-                            Either::Left(date) => {
-                                buffer.push_str(&date.format(READABLE_DATE).unwrap())
-                            }
+                        match time.get_date() {
+                            Ok(date) => buffer.push_str(&date.format(READABLE_DATE).unwrap()),
                             // TODO: Either of the following
                             // 1) Support letting people customize the timezone for all blocks
                             // 2) Detect the timezone name and append it
                             // 3) Ask Notion devs to add timezone name to API response
-                            Either::Right(datetime) => buffer.push_str(
+                            Err(datetime) => buffer.push_str(
                                 &datetime
                                     .to_offset(time::UtcOffset::UTC)
                                     .format(READABLE_DATETIME)
@@ -726,10 +723,9 @@ mod tests {
         response::{
             properties::TitleProperty, Annotations, Block, BlockType, Color, Emoji, EmojiOrFile,
             File, Language, NotionDate, Page, PageParent, RichText, RichTextLink,
-            RichTextMentionType, RichTextType, Time,
+            RichTextMentionType, RichTextType,
         },
     };
-    use either::Either;
     use maud::Render;
     use pretty_assertions::assert_eq;
     use reqwest::Url;
@@ -737,7 +733,6 @@ mod tests {
         collections::{HashMap, HashSet},
         path::PathBuf,
     };
-    use time::macros::{date, datetime};
 
     #[test]
     fn render_unsupported() {
@@ -1993,10 +1988,7 @@ mod tests {
             annotations: Default::default(),
             ty: RichTextType::Mention {
                 mention: RichTextMentionType::Date(NotionDate {
-                    start: Time {
-                        original: "2021-11-07T02:59:00.000-08:00".to_string(),
-                        parsed: Either::Right(datetime!(2021-11-07 02:59-08:00)),
-                    },
+                    start: "2021-11-07T02:59:00.000-08:00".parse().unwrap(),
                     end: None,
                     time_zone: None,
                 }),
@@ -2016,14 +2008,8 @@ mod tests {
             annotations: Default::default(),
             ty: RichTextType::Mention {
                 mention: RichTextMentionType::Date(NotionDate {
-                    start: Time {
-                        original: "2021-12-05".to_string(),
-                        parsed: Either::Left(date!(2021 - 12 - 05)),
-                    },
-                    end: Some(Time {
-                        original: "2021-12-06".to_string(),
-                        parsed: Either::Left(date!(2021 - 12 - 06)),
-                    }),
+                    start: "2021-12-05".parse().unwrap(),
+                    end: Some("2021-12-06".parse().unwrap()),
                     time_zone: None,
                 }),
             },
