@@ -96,30 +96,12 @@ impl PlainText for Vec<&RichText> {
 }
 
 mod deserializers {
-    use super::{File, PageParent, RichTextLink, Time};
+    use super::{File, PageParent, RichTextLink};
     use serde::{
         de::{Error, Unexpected},
         Deserialize, Deserializer,
     };
     use std::borrow::Cow;
-
-    fn time_inner<'a, D: Deserializer<'a>>(input: &'a str) -> Result<Time, D::Error> {
-        input.parse().map_err(|_| {
-            D::Error::custom("data matched neither a date (YYYY-MM-DD) nor a datetime (RFC3339)")
-        })
-    }
-
-    pub fn time<'a, D: Deserializer<'a>>(deserializer: D) -> Result<Time, D::Error> {
-        time_inner::<D>(<_>::deserialize(deserializer)?)
-    }
-
-    pub fn optional_time<'a, D: Deserializer<'a>>(
-        deserializer: D,
-    ) -> Result<Option<Time>, D::Error> {
-        Option::deserialize(deserializer)?
-            .map(time_inner::<D>)
-            .transpose()
-    }
 
     pub fn optional_rich_text_link<'a, D: Deserializer<'a>>(
         deserializer: D,
@@ -321,6 +303,19 @@ impl FromStr for Time {
     }
 }
 
+impl<'de> Deserialize<'de> for Time {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        <&str>::deserialize(deserializer)?
+            .parse()
+            .map_err(D::Error::custom)
+    }
+}
+
 impl PartialEq<Date> for Time {
     fn eq(&self, other: &Date) -> bool {
         match self.parsed {
@@ -408,9 +403,7 @@ pub enum UserType {
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct NotionDate {
-    #[serde(deserialize_with = "deserializers::time")]
     pub start: Time,
-    #[serde(deserialize_with = "deserializers::optional_time")]
     pub end: Option<Time>,
     // TODO(NOTION): This just got added to the API recently but it seems to never be returned
     // as a response, it's possible to set it if you're using the API to add/modify Notion though
