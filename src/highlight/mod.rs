@@ -177,26 +177,4 @@ I hope you have a great day!</code></pre>"#
                 })
             });
     }
-
-    #[test]
-    fn toml_via_hack() {
-        assert_eq!(
-            highlight(
-                &Language::PlainText,
-                r#"%$NOTION-HACK$%toml
-[package]
-name = "cargo"
-version = "0.1.0"
-edition = "2021""#,
-                "5e845049255f423296fd6f20449be0bc".parse().unwrap()
-            )
-            .unwrap()
-            .into_string(),
-            r#"<pre id="5e845049255f423296fd6f20449be0bc" class="toml"><code class="toml"><span class="punctuation">[</span>package<span class="punctuation">]</span>
-name <span class="operator">=</span> <span class="string">&quot;cargo&quot;</span>
-version <span class="operator">=</span> <span class="string">&quot;0.1.0&quot;</span>
-edition <span class="operator">=</span> <span class="string">&quot;2021&quot;</span>
-</code></pre>"#
-        );
-    }
 }
