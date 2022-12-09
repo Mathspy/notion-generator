@@ -29,24 +29,21 @@ const HIGHLIGHTS: [&str; 18] = [
 pub fn highlight(lang: &Language, code: &str, id: NotionId) -> Result<Markup> {
     let (tree_sitter_lang, highlights, code, lang_name) = match (lang, code) {
         (Language::PlainText, code) => {
-            if let Some(code) = code.strip_prefix("%$NOTION-HACK$%toml\n") {
-                (
-                    tree_sitter_toml::language(),
-                    tree_sitter_toml::HIGHLIGHT_QUERY,
-                    code,
-                    "toml",
-                )
-            } else {
-                return Ok(html! {
-                    pre id=(id) class="plain_text" {
-                        code class="plain_text" {
-                            (code)
-                        }
+            return Ok(html! {
+                pre id=(id) class="plain_text" {
+                    code class="plain_text" {
+                        (code)
                     }
-                });
-            }
+                }
+            });
         }
         (Language::Rust, code) => (tree_sitter_rust::language(), RUST_HIGHLIGHTS, code, "rust"),
+        (Language::Toml, code) => (
+            tree_sitter_toml::language(),
+            tree_sitter_toml::HIGHLIGHT_QUERY,
+            code,
+            "toml",
+        ),
         _ => bail!(
             "Unsupported language {}",
             serde_json::to_value(lang)
@@ -104,83 +101,64 @@ mod tests {
 
     use super::highlight;
     use crate::response::Language;
-    use pretty_assertions::assert_eq;
+    use insta::Settings;
 
     #[test]
-    fn plain_text() {
-        assert_eq!(
-            highlight(
-                &Language::PlainText,
-                "Hey there, lovely friend!\nI hope you have a great day!",
-                "5e845049255f423296fd6f20449be0bc".parse().unwrap()
-            )
-            .unwrap()
-            .into_string(),
-            r#"<pre id="5e845049255f423296fd6f20449be0bc" class="plain_text"><code class="plain_text">Hey there, lovely friend!
-I hope you have a great day!</code></pre>"#
-        );
-    }
+    fn highlighting_tests() {
+        let mut settings = Settings::new();
+        settings.set_prepend_module_to_snapshot(false);
+        settings.set_snapshot_path("tests");
+        settings.set_omit_expression(true);
 
-    #[test]
-    fn rust_highlighting() {
         let tests_dir = Path::new(file!())
             .parent()
             .unwrap()
-            .join("tests/rust")
+            .join("tests")
             .canonicalize()
             .unwrap();
 
         fs::read_dir(&tests_dir)
             .unwrap()
-            .filter_map(|file| {
+            .flat_map(|folder| {
+                let path = folder.as_ref().unwrap().path();
+                let lang = path
+                    .file_name()
+                    .unwrap()
+                    .to_os_string()
+                    .to_string_lossy()
+                    .into_owned();
+
+                fs::read_dir(&path)
+                    .unwrap()
+                    .map(move |file| (lang.clone(), file))
+            })
+            .filter_map(|(lang, file)| {
                 let path = file.as_ref().unwrap().path();
                 let extension = path.extension().unwrap().to_str().unwrap();
-                if extension == "rs" {
-                    Some(path)
+                if extension != "snap" {
+                    Some((lang, path))
                 } else {
                     None
                 }
             })
-            .for_each(|path| {
-                let mut html_file = path.clone();
-                html_file.set_extension("html");
+            .for_each(|(lang, path)| {
                 let code = fs::read_to_string(tests_dir.join(&path)).unwrap();
-                let html = fs::read_to_string(tests_dir.join(html_file)).unwrap();
+                let snap_name = path.file_name().unwrap().to_str().unwrap();
 
-                assert_eq!(
-                    highlight(
-                        &Language::Rust,
-                        &code,
-                        "5e845049255f423296fd6f20449be0bc".parse().unwrap()
+                settings.set_snapshot_path(tests_dir.join(&lang));
+                settings.bind(|| {
+                    insta::assert_snapshot!(
+                        snap_name,
+                        highlight(
+                            &serde_json::from_str::<Language>(&format!("\"{lang}\""))
+                                .expect(&format!("unexpected language {lang}")),
+                            &code,
+                            "5e845049255f423296fd6f20449be0bc".parse().unwrap()
+                        )
+                        .unwrap()
+                        .into_string()
                     )
-                    .unwrap()
-                    .into_string(),
-                    html.trim(),
-                    "generated html didn't match output for: {}",
-                    path.display()
-                );
+                })
             });
-    }
-
-    #[test]
-    fn toml_via_hack() {
-        assert_eq!(
-            highlight(
-                &Language::PlainText,
-                r#"%$NOTION-HACK$%toml
-[package]
-name = "cargo"
-version = "0.1.0"
-edition = "2021""#,
-                "5e845049255f423296fd6f20449be0bc".parse().unwrap()
-            )
-            .unwrap()
-            .into_string(),
-            r#"<pre id="5e845049255f423296fd6f20449be0bc" class="toml"><code class="toml"><span class="punctuation">[</span>package<span class="punctuation">]</span>
-name <span class="operator">=</span> <span class="string">&quot;cargo&quot;</span>
-version <span class="operator">=</span> <span class="string">&quot;0.1.0&quot;</span>
-edition <span class="operator">=</span> <span class="string">&quot;2021&quot;</span>
-</code></pre>"#
-        );
     }
 }

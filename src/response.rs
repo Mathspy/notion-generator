@@ -806,10 +806,12 @@ pub enum BlockType {
 #[derive(Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all(deserialize = "lowercase", serialize = "snake_case"))]
 pub enum Language {
+    Assembly,
     Abap,
     Arduino,
     Bash,
     Basic,
+    Bnf,
     C,
     Clojure,
     CoffeeScript,
@@ -821,6 +823,7 @@ pub enum Language {
     Dart,
     Diff,
     Docker,
+    Ebnf,
     Elixir,
     Elm,
     Erlang,
@@ -835,6 +838,7 @@ pub enum Language {
     Groovy,
     Haskell,
     Html,
+    Idris,
     Java,
     // TODO(NOTION): It says `javaSsript` in the docs but it sends back `javascript`
     JavaScript,
@@ -845,10 +849,13 @@ pub enum Language {
     Less,
     Lisp,
     LiveScript,
+    #[serde(rename(deserialize = "llvm ir"))]
+    LlvmIr,
     Lua,
     Makefile,
     Markdown,
     Markup,
+    Mathematica,
     Matlab,
     Mermaid,
     Nix,
@@ -863,8 +870,10 @@ pub enum Language {
     Powershell,
     Prolog,
     Protobuf,
+    PureScript,
     Python,
     R,
+    Racket,
     Reason,
     Ruby,
     Rust,
@@ -873,8 +882,10 @@ pub enum Language {
     Scheme,
     Scss,
     Shell,
+    Solidity,
     Sql,
     Swift,
+    Toml,
     TypeScript,
     #[serde(rename(deserialize = "vb.net"))]
     VbNet,
@@ -2507,6 +2518,10 @@ mod tests {
     #[test]
     fn test_languages() {
         assert_eq!(
+            serde_json::from_str::<Language>(r#""assembly""#).unwrap(),
+            Language::Assembly,
+        );
+        assert_eq!(
             serde_json::from_str::<Language>(r#""abap""#).unwrap(),
             Language::Abap,
         );
@@ -2521,6 +2536,10 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<Language>(r#""basic""#).unwrap(),
             Language::Basic,
+        );
+        assert_eq!(
+            serde_json::from_str::<Language>(r#""bnf""#).unwrap(),
+            Language::Bnf,
         );
         assert_eq!(
             serde_json::from_str::<Language>(r#""c""#).unwrap(),
@@ -2557,6 +2576,10 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<Language>(r#""docker""#).unwrap(),
             Language::Docker,
+        );
+        assert_eq!(
+            serde_json::from_str::<Language>(r#""ebnf""#).unwrap(),
+            Language::Ebnf,
         );
         assert_eq!(
             serde_json::from_str::<Language>(r#""elixir""#).unwrap(),
@@ -2611,6 +2634,10 @@ mod tests {
             Language::Html,
         );
         assert_eq!(
+            serde_json::from_str::<Language>(r#""idris""#).unwrap(),
+            Language::Idris,
+        );
+        assert_eq!(
             serde_json::from_str::<Language>(r#""java""#).unwrap(),
             Language::Java,
         );
@@ -2647,6 +2674,10 @@ mod tests {
             Language::LiveScript,
         );
         assert_eq!(
+            serde_json::from_str::<Language>(r#""llvm ir""#).unwrap(),
+            Language::LlvmIr,
+        );
+        assert_eq!(
             serde_json::from_str::<Language>(r#""lua""#).unwrap(),
             Language::Lua,
         );
@@ -2661,6 +2692,10 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<Language>(r#""markup""#).unwrap(),
             Language::Markup,
+        );
+        assert_eq!(
+            serde_json::from_str::<Language>(r#""mathematica""#).unwrap(),
+            Language::Mathematica,
         );
         assert_eq!(
             serde_json::from_str::<Language>(r#""matlab""#).unwrap(),
@@ -2711,12 +2746,20 @@ mod tests {
             Language::Protobuf,
         );
         assert_eq!(
+            serde_json::from_str::<Language>(r#""purescript""#).unwrap(),
+            Language::PureScript,
+        );
+        assert_eq!(
             serde_json::from_str::<Language>(r#""python""#).unwrap(),
             Language::Python,
         );
         assert_eq!(
             serde_json::from_str::<Language>(r#""r""#).unwrap(),
             Language::R,
+        );
+        assert_eq!(
+            serde_json::from_str::<Language>(r#""racket""#).unwrap(),
+            Language::Racket,
         );
         assert_eq!(
             serde_json::from_str::<Language>(r#""reason""#).unwrap(),
@@ -2751,12 +2794,20 @@ mod tests {
             Language::Shell,
         );
         assert_eq!(
+            serde_json::from_str::<Language>(r#""solidity""#).unwrap(),
+            Language::Solidity,
+        );
+        assert_eq!(
             serde_json::from_str::<Language>(r#""sql""#).unwrap(),
             Language::Sql,
         );
         assert_eq!(
             serde_json::from_str::<Language>(r#""swift""#).unwrap(),
             Language::Swift,
+        );
+        assert_eq!(
+            serde_json::from_str::<Language>(r#""toml""#).unwrap(),
+            Language::Toml,
         );
         assert_eq!(
             serde_json::from_str::<Language>(r#""typescript""#).unwrap(),

@@ -30,6 +30,7 @@ uuid = { version = "0.8", features = ["serde"] }
 tower = { version = "0.4", features = ["buffer", "limit", "util"] }
 
 [dev-dependencies]
+insta = "1.22.0"
 pretty_assertions = { version = "1" }
 
 [workspace]
