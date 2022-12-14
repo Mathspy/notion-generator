@@ -693,6 +693,25 @@ impl<'a> Render for RichTextRenderer<'a> {
 
                     self.render_link_closing(buffer);
                 }
+                // TODO: link_previews can be so much nicer if we actually query the link and get
+                // the HTML data from it and look inside of it for the meta og:title with a fallback
+                // to the <title> and the same for favicons so that we can render the icon next to
+                // the link's title much like what Notion does
+                RichTextMentionType::LinkPreview { url } => {
+                    self.render_link_opening(
+                        buffer,
+                        &RichTextLink::External {
+                            url: url.to_string(),
+                        },
+                    );
+
+                    let mut escaped_content = String::with_capacity(url.len());
+                    let mut escape = Escaper::new(&mut escaped_content);
+                    escape.write_str(url).expect("unreachable");
+                    buffer.push_str(&escaped_content);
+
+                    self.render_link_closing(buffer);
+                }
                 _ => todo!(),
             },
         }
