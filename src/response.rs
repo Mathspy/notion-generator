@@ -428,7 +428,9 @@ pub enum RichTextMentionType {
         id: NotionId,
     },
     Date(NotionDate),
-    // TODO(NOTION): link_preview has absolutely no documentation
+    LinkPreview {
+        url: String,
+    },
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
