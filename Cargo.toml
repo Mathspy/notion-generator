@@ -10,7 +10,6 @@ rust-version = "1.65"
 
 [dependencies]
 anyhow = { version = "1" }
-async-recursion = { version = "0.3" }
 time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
 emoji = { version = "0.2" }
 flurry = { version = "0.3" }
