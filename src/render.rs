@@ -2058,6 +2058,24 @@ mod tests {
                 .into_string(),
             r#"<a href="/6e0eb85f60474efba1304f92d2abfa2c">watereddown-test</a>"#
         );
+
+        let text = RichText {
+            plain_text: "watereddown-test".to_string(),
+            href: Some("https://www.notion.so/6e0eb85f60474efba1304f92d2abfa2c".to_string()),
+            annotations: Default::default(),
+            ty: RichTextType::Mention {
+                mention: RichTextMentionType::LinkPreview {
+                    url: "https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e".to_string(),
+                },
+            },
+        };
+
+        assert_eq!(
+            RichTextRenderer::new(&text, &renderer)
+                .render()
+                .into_string(),
+            r#"<a href="https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e" target="_blank" rel="noreferrer noopener">https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e</a>"#
+        );
     }
 
     #[test]
