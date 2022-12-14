@@ -1,10 +1,9 @@
 use crate::response::{Block, Error, List, NotionId, Page};
 use anyhow::{bail, format_err, Context, Result};
-use async_recursion::async_recursion;
 use futures_util::stream::{FuturesOrdered, TryStreamExt};
 use reqwest::{Client, Method, Request};
 use serde::{Deserialize, Serialize};
-use std::ops::Not;
+use std::{future::Future, ops::Not, pin::Pin};
 use tower::{buffer::Buffer, limit::RateLimit, Service, ServiceExt};
 
 pub struct NotionClient {
@@ -166,45 +165,51 @@ impl NotionClient {
         Ok(parsed)
     }
 
-    #[async_recursion]
-    pub async fn get_block_children(&self, id: NotionId) -> Result<Vec<Block>> {
-        let mut cursor = None;
-        let mut output = FuturesOrdered::new();
+    pub fn get_block_children<'a>(
+        &'a self,
+        id: NotionId,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<Block>>> + 'a>> {
+        let future = async move {
+            let mut cursor = None;
+            let mut output = FuturesOrdered::new();
 
-        loop {
-            let url = format!("https://api.notion.com/v1/blocks/{}/children", id);
-            let list = self
-                .send_request::<List<Block>>(
-                    &url,
-                    self.build_request(Method::GET, &url)?.query(&[
-                        ("page_size", Some("100")),
-                        ("start_cursor", cursor.as_deref()),
-                    ]),
-                )
-                .await?;
+            loop {
+                let url = format!("https://api.notion.com/v1/blocks/{}/children", id);
+                let list = self
+                    .send_request::<List<Block>>(
+                        &url,
+                        self.build_request(Method::GET, &url)?.query(&[
+                            ("page_size", Some("100")),
+                            ("start_cursor", cursor.as_deref()),
+                        ]),
+                    )
+                    .await?;
 
-            let requests = list
-                .results
-                .into_iter()
-                .map(|block| async {
-                    if !block.has_children {
-                        return Ok::<Block, anyhow::Error>(block);
-                    }
+                let requests = list
+                    .results
+                    .into_iter()
+                    .map(|block| async {
+                        if !block.has_children {
+                            return Ok::<Block, anyhow::Error>(block);
+                        }
 
-                    let children = self.get_block_children(block.id).await?;
+                        let children = self.get_block_children(block.id).await?;
 
-                    Ok(block.replace_children(children))
-                })
-                .collect::<Vec<_>>();
+                        Ok(block.replace_children(children))
+                    })
+                    .collect::<Vec<_>>();
 
-            output.extend(requests);
+                output.extend(requests);
 
-            if list.has_more {
-                cursor = list.next_cursor;
-            } else {
-                return output.try_collect().await;
+                if list.has_more {
+                    cursor = list.next_cursor;
+                } else {
+                    return output.try_collect().await;
+                }
             }
-        }
+        };
+
+        Box::pin(future)
     }
 
     pub async fn get_database_pages<P>(&self, id: &str) -> Result<Vec<Page<P>>>
