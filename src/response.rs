@@ -1446,6 +1446,45 @@ mod tests {
                 },
             }
         );
+
+        let json = r#"
+            {
+              "type": "mention",
+              "mention":
+              {
+                "type": "link_preview",
+                "link_preview":
+                {
+                  "url": "https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e"
+                }
+              },
+              "annotations":
+              {
+                "bold": false,
+                "italic": false,
+                "strikethrough": false,
+                "underline": false,
+                "code": false,
+                "color": "default"
+              },
+              "plain_text": "https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e",
+              "href": "https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e"
+            }
+        "#;
+
+        assert_eq!(
+            serde_json::from_str::<RichText>(json).unwrap(),
+            RichText {
+                plain_text: "https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e".to_string(),
+                href: Some("https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e".to_string()),
+                annotations: Default::default(),
+                ty: RichTextType::Mention {
+                    mention: RichTextMentionType::LinkPreview {
+                        url: "https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e".to_string(),
+                    },
+                },
+            }
+        );
     }
 
     #[test]
