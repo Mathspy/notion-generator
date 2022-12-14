@@ -693,6 +693,25 @@ impl<'a> Render for RichTextRenderer<'a> {
 
                     self.render_link_closing(buffer);
                 }
+                // TODO: link_previews can be so much nicer if we actually query the link and get
+                // the HTML data from it and look inside of it for the meta og:title with a fallback
+                // to the <title> and the same for favicons so that we can render the icon next to
+                // the link's title much like what Notion does
+                RichTextMentionType::LinkPreview { url } => {
+                    self.render_link_opening(
+                        buffer,
+                        &RichTextLink::External {
+                            url: url.to_string(),
+                        },
+                    );
+
+                    let mut escaped_content = String::with_capacity(url.len());
+                    let mut escape = Escaper::new(&mut escaped_content);
+                    escape.write_str(url).expect("unreachable");
+                    buffer.push_str(&escaped_content);
+
+                    self.render_link_closing(buffer);
+                }
                 _ => todo!(),
             },
         }
@@ -2038,6 +2057,24 @@ mod tests {
                 .render()
                 .into_string(),
             r#"<a href="/6e0eb85f60474efba1304f92d2abfa2c">watereddown-test</a>"#
+        );
+
+        let text = RichText {
+            plain_text: "watereddown-test".to_string(),
+            href: Some("https://www.notion.so/6e0eb85f60474efba1304f92d2abfa2c".to_string()),
+            annotations: Default::default(),
+            ty: RichTextType::Mention {
+                mention: RichTextMentionType::LinkPreview {
+                    url: "https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e".to_string(),
+                },
+            },
+        };
+
+        assert_eq!(
+            RichTextRenderer::new(&text, &renderer)
+                .render()
+                .into_string(),
+            r#"<a href="https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e" target="_blank" rel="noreferrer noopener">https://github.com/Mathspy/flocking_bevy/commit/21e0c3c1b0d198646b840038282c258318ac626e</a>"#
         );
     }
 
